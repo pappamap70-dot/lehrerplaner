@@ -509,8 +509,221 @@
       </div>
     </div>
 
+    <!-- ── KLASSE DETAIL ── -->
+    <div id="view-klasse-detail" class="view">
+      <div class="kd-header">
+        <button class="kd-back btn btn-ghost" id="kd-back-btn">← Klassen</button>
+        <div class="kd-title">
+          <h2 id="kd-class-name"></h2>
+          <span id="kd-class-subject"></span>
+        </div>
+        <button class="btn btn-primary btn-sm" id="kd-action-btn">+ Hinzufügen</button>
+      </div>
+      <nav class="kd-nav" id="kd-nav">
+        <button class="kd-tab active" data-kd="schueler">👥 Schüler</button>
+        <button class="kd-tab" data-kd="noten">📊 Noten</button>
+        <button class="kd-tab" data-kd="anwesenheit">📋 Anwesenheit</button>
+        <button class="kd-tab" data-kd="bemerkungen">💬 Bemerkungen</button>
+        <button class="kd-tab" data-kd="sitzplan">🪑 Sitzplan</button>
+        <button class="kd-tab" data-kd="hausaufgaben">📚 Hausaufgaben</button>
+      </nav>
+      <div id="kd-content" class="kd-content"></div>
+    </div>
+
   </div><!-- #main-content -->
 </div><!-- #app -->
+
+<!-- ══════════════════════════════════════════════════════════
+     STUDENT MODAL
+══════════════════════════════════════════════════════════ -->
+<div id="student-modal" class="overlay-backdrop hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="student-modal-title">Neuer Schüler</span>
+      <button class="modal-close" id="student-modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group" style="flex:1.5;">
+          <label class="form-label">Nachname *</label>
+          <input type="text" class="form-input" id="s-nachname" placeholder="Mustermann">
+        </div>
+        <div class="form-group" style="flex:1.5;">
+          <label class="form-label">Vorname *</label>
+          <input type="text" class="form-input" id="s-vorname" placeholder="Max">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label class="form-label">Geschlecht</label>
+          <select class="form-select" id="s-geschlecht">
+            <option value="m">m</option>
+            <option value="w">w</option>
+            <option value="d">d</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Geburtsdatum</label>
+          <input type="date" class="form-input" id="s-geburtsdatum">
+        </div>
+        <div class="form-group" style="justify-content:flex-end;padding-top:22px;">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;">
+            <input type="checkbox" id="s-aktiv" checked style="width:18px;height:18px;">
+            Aktiv
+          </label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm" id="s-deactivate" style="margin-right:auto;display:none;">Deaktivieren</button>
+      <button class="btn btn-secondary" id="s-cancel">Abbrechen</button>
+      <button class="btn btn-primary" id="s-save">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     GRADE MODAL
+══════════════════════════════════════════════════════════ -->
+<div id="grade-modal" class="overlay-backdrop hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="grade-modal-title">Note eintragen</span>
+      <button class="modal-close" id="grade-modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group" style="flex:2;">
+          <label class="form-label">Schüler/in</label>
+          <select class="form-select" id="g-student"></select>
+        </div>
+        <div class="form-group" style="flex:2;">
+          <label class="form-label">Fach</label>
+          <input type="text" class="form-input" id="g-fach" placeholder="z. B. Mathematik" list="g-fach-list">
+          <datalist id="g-fach-list"></datalist>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group" style="flex:1;">
+          <label class="form-label">Note (1–6)</label>
+          <input type="number" class="form-input" id="g-note" min="1" max="6" step="0.5" placeholder="2.5">
+        </div>
+        <div class="form-group" style="flex:1.5;">
+          <label class="form-label">Typ</label>
+          <select class="form-select" id="g-typ">
+            <option value="muendlich">mündlich (×1)</option>
+            <option value="schriftlich">schriftlich (×2)</option>
+            <option value="projekt">Projekt (×1.5)</option>
+          </select>
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label class="form-label">Gewichtung</label>
+          <input type="number" class="form-input" id="g-gewichtung" min="0.5" max="5" step="0.5" value="1">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label class="form-label">Datum</label>
+          <input type="date" class="form-input" id="g-datum">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Kommentar</label>
+        <input type="text" class="form-input" id="g-kommentar" placeholder="Optional">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm" id="g-delete" style="margin-right:auto;display:none;">Löschen</button>
+      <button class="btn btn-secondary" id="g-cancel">Abbrechen</button>
+      <button class="btn btn-primary" id="g-save">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     REMARK MODAL (quick-add from student view)
+══════════════════════════════════════════════════════════ -->
+<div id="remark-modal" class="overlay-backdrop hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="remark-modal-title">Bemerkung</span>
+      <button class="modal-close" id="remark-modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group" style="flex:2;">
+          <label class="form-label">Schüler/in</label>
+          <select class="form-select" id="r-student"></select>
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label class="form-label">Datum</label>
+          <input type="date" class="form-input" id="r-datum">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Kategorie</label>
+        <div class="remark-cat-btns" id="r-cat-btns">
+          <button class="remark-cat-btn allgemein active" data-cat="allgemein">Allgemein</button>
+          <button class="remark-cat-btn elternkontakt" data-cat="elternkontakt">Elternkontakt</button>
+          <button class="remark-cat-btn verhalten" data-cat="verhalten">Verhalten</button>
+          <button class="remark-cat-btn positiv" data-cat="positiv">Positiv</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Text</label>
+        <textarea class="form-textarea" id="r-text" placeholder="Bemerkung eingeben..." rows="3"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="r-cancel">Abbrechen</button>
+      <button class="btn btn-primary" id="r-save">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     ASV IMPORT MODAL
+══════════════════════════════════════════════════════════ -->
+<div id="import-asv-modal" class="overlay-backdrop hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <span class="modal-title">Schüler importieren (ASV/CSV/Excel)</span>
+      <button class="modal-close" id="asv-modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <!-- Step 1: Upload -->
+      <div class="import-step active" id="asv-step-1">
+        <div class="import-drop-zone" id="asv-drop-zone">
+          <div class="import-drop-icon">📂</div>
+          <p style="font-weight:600;margin-bottom:4px;">CSV oder Excel-Datei hierher ziehen</p>
+          <p class="text-muted text-sm">oder klicken zum Auswählen (.csv, .xlsx, .xls)</p>
+          <input type="file" id="asv-file-input" accept=".csv,.xlsx,.xls" style="display:none;">
+        </div>
+      </div>
+      <!-- Step 2: Column Mapping -->
+      <div class="import-step" id="asv-step-2">
+        <div class="section-title" style="margin-bottom:8px;">Vorschau (erste 3 Zeilen)</div>
+        <div class="import-preview" id="asv-preview"></div>
+        <div class="section-title" style="margin:16px 0 8px;">Spalten zuordnen</div>
+        <div class="col-mapping" id="asv-col-mapping"></div>
+        <div class="form-group mt-3">
+          <label class="form-label">Duplikate (gleicher Nachname + Vorname)</label>
+          <select class="form-select" id="asv-dup-mode" style="max-width:260px;">
+            <option value="skip">Überspringen</option>
+            <option value="overwrite">Überschreiben</option>
+          </select>
+        </div>
+      </div>
+      <!-- Step 3: Summary -->
+      <div class="import-step" id="asv-step-3">
+        <div class="import-summary" id="asv-summary"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="asv-back" style="margin-right:auto;display:none;">← Zurück</button>
+      <button class="btn btn-secondary" id="asv-cancel">Abbrechen</button>
+      <button class="btn btn-primary" id="asv-next">Weiter →</button>
+    </div>
+  </div>
+</div>
 
 <!-- Quick-add FAB (shown in calendar/dashboard) -->
 <button class="btn-fab" id="fab-add" title="Neuer Eintrag">+</button>
@@ -520,7 +733,9 @@
 
 <!-- Scripts -->
 <script src="https://cdn.jsdelivr.net/npm/idb@7/build/umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="db.js"></script>
 <script src="app.js"></script>
+<script src="students.js"></script>
 </body>
 </html>

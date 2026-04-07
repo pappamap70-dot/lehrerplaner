@@ -310,11 +310,16 @@ App.navigate = async function(view) {
 
   // Render view
   switch (view) {
-    case 'dashboard':    await renderDashboard(); break;
-    case 'klassen':      await renderKlassen(); break;
-    case 'kalender':     await renderCalendar(); break;
-    case 'organisation': renderOrganisation(); break;
-    case 'notizen':      await renderNotizen(); break;
+    case 'dashboard':      await renderDashboard(); break;
+    case 'klassen':        await renderKlassen(); break;
+    case 'kalender':       await renderCalendar(); break;
+    case 'organisation':   renderOrganisation(); break;
+    case 'notizen':        await renderNotizen(); break;
+    case 'klasse-detail':
+      // Keep KLASSEN tab highlighted
+      qsa('.nav-tab').forEach(t => t.classList.toggle('active', t.dataset.view==='klassen'));
+      if (typeof renderKlasseDetail === 'function') await renderKlasseDetail();
+      break;
   }
 };
 
@@ -698,11 +703,15 @@ async function renderKlassen() {
     grid.innerHTML = slots.map(slot => {
       const c = bySlot[slot];
       if (c) {
-        return `<div class="klasse-card" style="border-left-color:${c.color||'#4A6FA5'};" onclick="openKlasseModal(${c.id})">
+        return `<div class="klasse-card" style="border-left-color:${c.color||'#4A6FA5'};" onclick="openKlasseDetail(${c.id})">
           <div class="klasse-card-header">
             <div class="klasse-name" style="color:${c.color||'#4A6FA5'};">${escHtml(c.name)}</div>
+            <button class="btn btn-ghost btn-sm btn-icon kl-edit-btn" onclick="event.stopPropagation();openKlasseModal(${c.id})" title="Klasse bearbeiten">✎</button>
           </div>
           <div class="klasse-subject">${escHtml(c.subject||'')}</div>
+          <div class="klasse-card-footer">
+            <span class="kl-student-count" id="kl-count-${c.id}"></span>
+          </div>
         </div>`;
       } else {
         return `<div class="klasse-add-card" onclick="openKlasseModal(null,${slot})">

@@ -1,14 +1,16 @@
 // sw.js — LehrerPlaner Service Worker (cache-first, full offline)
-const CACHE = 'lehrerplaner-v1';
+const CACHE = 'lehrerplaner-v2';
 const ASSETS = [
   './',
   './index.html',
   './app.js',
   './db.js',
+  './students.js',
   './style.css',
   './manifest.json',
   './icon.svg',
   'https://cdn.jsdelivr.net/npm/idb@7/build/umd.js',
+  'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
   'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap',
 ];
 
