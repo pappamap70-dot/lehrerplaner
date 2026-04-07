@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="LehrerPlaner">
+  <meta name="theme-color" content="#4A6FA5">
+  <meta name="description" content="Digitaler Lehrerplaner für deutsche Lehrerinnen und Lehrer">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
+  <link rel="stylesheet" href="style.css">
+  <title>LehrerPlaner</title>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════════
+     SETUP WIZARD
+══════════════════════════════════════════════════════════ -->
+<div id="setup-wizard" class="overlay-backdrop hidden">
+  <div class="modal">
+    <div class="modal-body" style="padding-top:24px;">
+      <div class="setup-progress">
+        <div class="setup-dot active" id="sdot-0"></div>
+        <div class="setup-dot" id="sdot-1"></div>
+        <div class="setup-dot" id="sdot-2"></div>
+      </div>
+
+      <!-- Step 0: Welcome -->
+      <div class="setup-step active" id="setup-step-0">
+        <div class="setup-hero">
+          <div class="setup-hero-icon">📚</div>
+          <h2>Willkommen bei LehrerPlaner</h2>
+          <p>Dein digitaler Planer für den Schulalltag.<br>
+             Alles offline, alles auf deinem Gerät.</p>
+        </div>
+        <div class="form-group mt-3">
+          <label class="form-label">Dein Name</label>
+          <input type="text" class="form-input" id="setup-name" placeholder="z. B. Frau Müller">
+        </div>
+        <div class="form-row mt-2">
+          <div class="form-group">
+            <label class="form-label">Schuljahr</label>
+            <select class="form-select" id="setup-year">
+              <option value="2025/26">2025/26</option>
+              <option value="2026/27">2026/27</option>
+              <option value="2027/28">2027/28</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Bundesland</label>
+            <select class="form-select" id="setup-state">
+              <option value="BW">Baden-Württemberg</option>
+              <option value="BY">Bayern</option>
+              <option value="other">Anderes</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Step 1: Classes -->
+      <div class="setup-step" id="setup-step-1">
+        <h3 style="font-size:18px;font-weight:700;margin-bottom:6px;">Klassen eingeben</h3>
+        <p class="text-muted text-sm" style="margin-bottom:16px;">Bis zu 18 Klassen — kannst du später jederzeit ändern.</p>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:8px;">Klassen 1–9</div>
+        <div class="klassen-setup-grid" id="setup-classes-1"></div>
+        <div style="font-size:11px;font-weight:700;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.6px;margin:16px 0 8px;">Klassen 10–18</div>
+        <div class="klassen-setup-grid" id="setup-classes-2"></div>
+      </div>
+
+      <!-- Step 2: Done -->
+      <div class="setup-step" id="setup-step-2">
+        <div class="setup-hero">
+          <div class="setup-hero-icon">🎉</div>
+          <h2>Alles bereit!</h2>
+          <p>Dein LehrerPlaner ist eingerichtet.<br>
+             Schulferien für BW wurden vorgeladen.</p>
+        </div>
+        <div class="card mt-3" style="background:var(--primary-bg);border-color:var(--primary-light);">
+          <div style="font-size:13px;color:var(--primary);font-weight:500;line-height:1.6;">
+            💡 <strong>Tipp:</strong> Tippe auf einen Kalendertag, um Termine einzutragen.
+            Wechsle in den <strong>Schreiben-Modus</strong>, um handschriftliche Notizen hinzuzufügen.
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" style="padding-top:0;">
+      <button class="btn btn-secondary" id="setup-back" style="display:none;">Zurück</button>
+      <button class="btn btn-primary btn-lg" id="setup-next">Weiter →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     EVENT DIALOG
+══════════════════════════════════════════════════════════ -->
+<div id="event-modal" class="overlay-backdrop hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="event-modal-title">Neuer Eintrag</span>
+      <button class="modal-close" id="event-modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group" style="flex:2;">
+          <label class="form-label">Titel</label>
+          <input type="text" class="form-input" id="ev-title" placeholder="Titel des Eintrags">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label class="form-label">Datum</label>
+          <input type="date" class="form-input" id="ev-date">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Typ</label>
+          <select class="form-select" id="ev-type">
+            <option value="appointment">Termin</option>
+            <option value="task">Aufgabe</option>
+            <option value="note">Notiz</option>
+            <option value="schultermin">Schultermin</option>
+            <option value="klassenarbeit">Klassenarbeit</option>
+            <option value="konferenz">Konferenz</option>
+            <option value="geburtstag">Geburtstag</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Klasse</label>
+          <select class="form-select" id="ev-class">
+            <option value="">Keine Klasse</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Uhrzeit (von)</label>
+          <input type="time" class="form-input" id="ev-time-start">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Uhrzeit (bis)</label>
+          <input type="time" class="form-input" id="ev-time-end">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Notiz / Beschreibung</label>
+        <textarea class="form-textarea" id="ev-text" placeholder="Weitere Details..." rows="3"></textarea>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Farbe</label>
+        <div class="color-input-row" id="ev-colors"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm" id="ev-delete" style="margin-right:auto;display:none;">Löschen</button>
+      <button class="btn btn-secondary" id="ev-cancel">Abbrechen</button>
+      <button class="btn btn-primary" id="ev-save">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     KLASSE DIALOG
+══════════════════════════════════════════════════════════ -->
+<div id="klasse-modal" class="overlay-backdrop hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="klasse-modal-title">Klasse bearbeiten</span>
+      <button class="modal-close" id="klasse-modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row">
+        <div class="form-group" style="flex:1.5;">
+          <label class="form-label">Klasse / Name</label>
+          <input type="text" class="form-input" id="kl-name" placeholder="z. B. 7a oder Klasse 4">
+        </div>
+        <div class="form-group" style="flex:1.5;">
+          <label class="form-label">Fach</label>
+          <input type="text" class="form-input" id="kl-subject" placeholder="z. B. Mathe, Deutsch">
+        </div>
+        <div class="form-group" style="flex:1;">
+          <label class="form-label">Slot (1–18)</label>
+          <input type="number" class="form-input" id="kl-slot" min="1" max="18" placeholder="1">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Farbe</label>
+        <div class="color-input-row" id="kl-colors"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm" id="kl-delete" style="margin-right:auto;display:none;">Löschen</button>
+      <button class="btn btn-secondary" id="kl-cancel">Abbrechen</button>
+      <button class="btn btn-primary" id="kl-save">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     GENERIC CONFIRM DIALOG
+══════════════════════════════════════════════════════════ -->
+<div id="confirm-dialog" class="overlay-backdrop hidden">
+  <div class="modal">
+    <div class="modal-body" style="text-align:center;padding:28px 24px;">
+      <div class="confirm-icon" id="confirm-icon">⚠️</div>
+      <h3 style="font-size:17px;font-weight:700;margin-bottom:8px;" id="confirm-title">Bist du sicher?</h3>
+      <p class="confirm-text" id="confirm-text"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="confirm-cancel">Abbrechen</button>
+      <button class="btn btn-danger" id="confirm-ok">Löschen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SETTINGS PANEL
+══════════════════════════════════════════════════════════ -->
+<div id="settings-panel" class="overlay-backdrop hidden">
+  <div class="modal modal-lg">
+    <div class="modal-header">
+      <span class="modal-title">Einstellungen</span>
+      <button class="modal-close" id="settings-close">×</button>
+    </div>
+    <div class="modal-body">
+      <!-- Teacher info -->
+      <div class="settings-section">
+        <div class="settings-section-title">Lehrerin / Lehrer</div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Name</div>
+          </div>
+          <input type="text" class="form-input" id="settings-name" style="max-width:220px;">
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Schuljahr</div>
+          </div>
+          <select class="form-select" id="settings-year" style="max-width:160px;">
+            <option value="2025/26">2025/26</option>
+            <option value="2026/27">2026/27</option>
+            <option value="2027/28">2027/28</option>
+          </select>
+        </div>
+      </div>
+      <!-- Backup -->
+      <div class="settings-section">
+        <div class="settings-section-title">Backup & Wiederherstellung</div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Daten exportieren</div>
+            <div class="settings-row-sub">Alle Einträge als .json Datei sichern</div>
+          </div>
+          <button class="btn btn-primary" id="btn-export">Backup erstellen</button>
+        </div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Daten importieren</div>
+            <div class="settings-row-sub">Backup wiederherstellen (.json)</div>
+          </div>
+          <button class="btn btn-secondary" id="btn-import">Backup laden</button>
+          <input type="file" id="import-file" accept=".json" style="display:none;">
+        </div>
+      </div>
+      <!-- New school year -->
+      <div class="settings-section">
+        <div class="settings-section-title">Schuljahr</div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">Neues Schuljahr anlegen</div>
+            <div class="settings-row-sub">Kalendereinträge löschen, Klassen behalten</div>
+          </div>
+          <button class="btn btn-secondary" id="btn-new-year">Neues Schuljahr</button>
+        </div>
+      </div>
+      <!-- About -->
+      <div class="settings-section">
+        <div class="settings-section-title">Über</div>
+        <div class="settings-row">
+          <div class="settings-row-label">Version</div>
+          <div class="text-muted text-sm">1.0.0</div>
+        </div>
+        <div class="settings-row">
+          <div class="settings-row-label">Speicher</div>
+          <div class="text-muted text-sm" id="settings-storage">wird berechnet…</div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-primary" id="settings-save">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     GENERIC ITEM DIALOG (Todos, Contacts, Links, etc.)
+══════════════════════════════════════════════════════════ -->
+<div id="item-modal" class="overlay-backdrop hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="item-modal-title">Neuer Eintrag</span>
+      <button class="modal-close" id="item-modal-close">×</button>
+    </div>
+    <div class="modal-body" id="item-modal-body">
+      <!-- Dynamic content injected by JS -->
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm" id="item-delete" style="margin-right:auto;display:none;">Löschen</button>
+      <button class="btn btn-secondary" id="item-cancel">Abbrechen</button>
+      <button class="btn btn-primary" id="item-save">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     PWA INSTALL PROMPT
+══════════════════════════════════════════════════════════ -->
+<div id="install-prompt" class="hidden">
+  <div class="install-prompt-text">
+    <strong>App installieren</strong>
+    Zum Startbildschirm hinzufügen für Offline-Nutzung
+  </div>
+  <button class="btn btn-primary btn-sm" id="install-btn">Installieren</button>
+  <button class="btn btn-ghost btn-sm" id="install-dismiss">✕</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     MAIN APP
+══════════════════════════════════════════════════════════ -->
+<div id="app" class="hidden">
+
+  <!-- Header -->
+  <div id="app-header">
+    <div class="header-logo">
+      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="32" height="32" rx="6" fill="rgba(255,255,255,0.2)"/>
+        <rect x="7" y="6" width="14" height="20" rx="2" fill="rgba(255,255,255,0.9)"/>
+        <rect x="10" y="10" width="8" height="1.5" rx="0.75" fill="rgba(74,111,165,0.8)"/>
+        <rect x="10" y="13" width="6" height="1" rx="0.5" fill="rgba(74,111,165,0.5)"/>
+        <rect x="10" y="15.5" width="7" height="1" rx="0.5" fill="rgba(74,111,165,0.5)"/>
+        <rect x="10" y="18" width="5" height="1" rx="0.5" fill="rgba(74,111,165,0.5)"/>
+      </svg>
+      LehrerPlaner
+    </div>
+    <div class="header-spacer"></div>
+    <div id="header-info">
+      <span id="header-teacher"></span>
+      <span id="header-date"></span>
+    </div>
+    <button class="header-btn" id="btn-settings" title="Einstellungen">⚙</button>
+  </div>
+
+  <!-- Main Navigation -->
+  <nav id="main-nav">
+    <button class="nav-tab active" data-view="dashboard">START</button>
+    <button class="nav-tab" data-view="klassen">KLASSEN</button>
+    <button class="nav-tab" data-view="kalender">KALENDER</button>
+    <button class="nav-tab" data-view="organisation">ORGANISATION</button>
+    <button class="nav-tab" data-view="notizen">NOTIZEN</button>
+  </nav>
+
+  <!-- Main Content -->
+  <div id="main-content">
+
+    <!-- ── DASHBOARD ── -->
+    <div id="view-dashboard" class="view active">
+      <div class="dashboard-card" id="dash-week">
+        <h3>Aktuelle Woche</h3>
+        <div class="dash-week-info" id="dash-kw">KW —</div>
+        <div class="dash-week-sub" id="dash-week-dates">—</div>
+      </div>
+      <div class="dashboard-card" id="dash-upcoming">
+        <h3>Nächste Termine</h3>
+        <div class="dash-upcoming-list" id="dash-events-list">
+          <div class="empty-state" style="padding:16px 0;"><p>Keine Termine</p></div>
+        </div>
+      </div>
+      <div class="dashboard-card" id="dash-classes">
+        <h3>Klassen</h3>
+        <div class="dash-class-grid" id="dash-class-grid"></div>
+      </div>
+      <div class="dashboard-card" style="grid-column:1/-1;" id="dash-actions">
+        <h3>Schnellzugriff</h3>
+        <div class="dash-quick-btns">
+          <button class="btn btn-primary" id="dash-add-event">+ Termin</button>
+          <button class="btn btn-secondary" onclick="App.navigate('kalender')">Wochenansicht →</button>
+          <button class="btn btn-secondary" onclick="App.navigate('notizen')">Notizen →</button>
+          <button class="btn btn-secondary" onclick="App.navigate('organisation')">To-Dos →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── KLASSEN ── -->
+    <div id="view-klassen" class="view">
+      <div class="klassen-section">
+        <div class="klassen-section-title">Klassen 1–9</div>
+        <div class="klassen-grid" id="klassen-grid-1"></div>
+      </div>
+      <div class="klassen-section">
+        <div class="klassen-section-title">Klassen 10–18</div>
+        <div class="klassen-grid" id="klassen-grid-2"></div>
+      </div>
+    </div>
+
+    <!-- ── KALENDER ── -->
+    <div id="view-kalender" class="view">
+      <!-- Toolbar -->
+      <div class="cal-toolbar">
+        <div class="cal-view-tabs">
+          <button class="cal-view-tab active" data-cal="week">Woche</button>
+          <button class="cal-view-tab" data-cal="month">Monat</button>
+          <button class="cal-view-tab" data-cal="year">Jahr</button>
+        </div>
+        <div class="cal-nav">
+          <button class="cal-nav-btn" id="cal-prev">‹</button>
+          <span id="cal-title">—</span>
+          <button class="cal-nav-btn" id="cal-next">›</button>
+          <button class="btn btn-secondary btn-sm" id="cal-today-btn">Heute</button>
+        </div>
+      </div>
+
+      <!-- Week Subview -->
+      <div class="cal-subview active" id="sub-week">
+        <div id="cal-week-content">
+          <div class="week-header" id="week-header">
+            <div class="week-header-cell"></div><!-- gutter -->
+          </div>
+          <div class="week-all-day-row" id="week-allday-row">
+            <div class="week-all-day-label">Ganztag</div>
+          </div>
+          <div class="week-body" id="week-body"></div>
+        </div>
+      </div>
+
+      <!-- Month Subview -->
+      <div class="cal-subview" id="sub-month">
+        <div id="cal-month-content">
+          <div class="month-grid" id="month-grid"></div>
+        </div>
+      </div>
+
+      <!-- Year Subview -->
+      <div class="cal-subview" id="sub-year">
+        <div id="cal-year-content">
+          <div class="year-grid" id="year-grid"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── ORGANISATION ── -->
+    <div id="view-organisation" class="view">
+      <!-- Module overview grid -->
+      <div id="org-overview">
+        <div class="section-title" style="margin-bottom:16px;">Organisation</div>
+        <div class="org-grid" id="org-grid"></div>
+      </div>
+      <!-- Detail view (shown when a module is open) -->
+      <div id="org-detail" style="display:none;">
+        <div class="org-detail-header">
+          <button class="org-back-btn" id="org-back">← Zurück</button>
+          <h2 id="org-detail-title"></h2>
+          <button class="btn btn-primary btn-sm" id="org-add-btn">+ Hinzufügen</button>
+        </div>
+        <div id="org-detail-content"></div>
+      </div>
+    </div>
+
+    <!-- ── NOTIZEN ── -->
+    <div id="view-notizen" class="view">
+      <div class="notiz-sidebar" id="notiz-sidebar">
+        <div class="notiz-sidebar-title">Notizen</div>
+        <!-- 10 page tabs injected by JS -->
+      </div>
+      <div class="notiz-content">
+        <div class="notiz-toolbar" id="notiz-toolbar">
+          <input type="text" class="notiz-title-input" id="notiz-title" placeholder="Seitentitel...">
+          <div class="ink-sep"></div>
+          <div class="ink-toggle">
+            <button class="ink-toggle-btn active" id="btn-mode-type">✏ Tippen</button>
+            <button class="ink-toggle-btn" id="btn-mode-ink">🖊 Schreiben</button>
+          </div>
+        </div>
+        <div class="ink-toolbar" id="ink-toolbar" style="display:none;">
+          <div class="ink-colors" id="ink-colors">
+            <button class="ink-color-btn active" data-color="#1a1a2e" style="background:#1a1a2e;" title="Schwarz"></button>
+            <button class="ink-color-btn" data-color="#4A6FA5" style="background:#4A6FA5;" title="Blau"></button>
+            <button class="ink-color-btn" data-color="#EF4444" style="background:#EF4444;" title="Rot"></button>
+            <button class="ink-color-btn" data-color="#10B981" style="background:#10B981;" title="Grün"></button>
+            <button class="ink-color-btn" data-color="#F59E0B" style="background:#F59E0B;" title="Orange"></button>
+          </div>
+          <div class="ink-sep"></div>
+          <div class="ink-width-wrap">
+            <span>✒</span>
+            <input type="range" class="ink-width-range" id="ink-width" min="1" max="12" value="3">
+          </div>
+          <div class="ink-sep"></div>
+          <button class="btn btn-secondary btn-sm" id="btn-eraser">Radierer</button>
+          <button class="btn btn-secondary btn-sm" id="btn-clear-ink">Seite löschen</button>
+        </div>
+        <div class="notiz-body" id="notiz-body">
+          <textarea class="notiz-textarea" id="notiz-textarea" placeholder="Tippe hier deine Notizen…"></textarea>
+          <div class="notiz-canvas-wrap" id="notiz-canvas-wrap">
+            <canvas id="notiz-canvas" class="ink-canvas"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- #main-content -->
+</div><!-- #app -->
+
+<!-- Quick-add FAB (shown in calendar/dashboard) -->
+<button class="btn-fab" id="fab-add" title="Neuer Eintrag">+</button>
+
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- Scripts -->
+<script src="https://cdn.jsdelivr.net/npm/idb@7/build/umd.js"></script>
+<script src="db.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
