@@ -695,35 +695,67 @@ function updateColorSwatches(containerId, selectedColor) {
 // ══════════════════════════════════════════════════════════════
 async function renderKlassen() {
   App.classes = await DB.getClasses();
-  const bySlot = {};
-  App.classes.forEach(c => { bySlot[c.slot||0] = c; });
+
+  // Separate classes with valid slot (1-18) from those without
+  const bySlot = {};      // slot 1-18 → class
+  const unslotted = [];   // classes with slot=0, undefined, or >18
+
+  App.classes.forEach(c => {
+    const s = c.slot;
+    if (s >= 1 && s <= 18 && !bySlot[s]) {
+      bySlot[s] = c;
+    } else if (s >= 1 && s <= 18 && bySlot[s]) {
+      // Duplicate slot — put second occupant into unslotted
+      unslotted.push(c);
+    } else {
+      unslotted.push(c);
+    }
+  });
+
+  // Any unslotted classes fill the first empty slot, then overflow to "Weitere"
+  let unslottedIdx = 0;
+
+  function klasseCardHtml(c) {
+    return `<div class="klasse-card" style="border-left-color:${c.color||'#4A6FA5'};" onclick="openKlasseDetail(${c.id})">
+      <div class="klasse-card-header">
+        <div class="klasse-name" style="color:${c.color||'#4A6FA5'};">${escHtml(c.name)}</div>
+        <button class="btn btn-ghost btn-sm btn-icon kl-edit-btn" onclick="event.stopPropagation();openKlasseModal(${c.id})" title="Klasse bearbeiten">✎</button>
+      </div>
+      <div class="klasse-subject">${escHtml(c.subject||'')}</div>
+      <div class="klasse-card-footer">
+        <span class="kl-student-count" id="kl-count-${c.id}"></span>
+      </div>
+    </div>`;
+  }
 
   function renderGrid(gridId, slots) {
     const grid = el(gridId);
     grid.innerHTML = slots.map(slot => {
-      const c = bySlot[slot];
-      if (c) {
-        return `<div class="klasse-card" style="border-left-color:${c.color||'#4A6FA5'};" onclick="openKlasseDetail(${c.id})">
-          <div class="klasse-card-header">
-            <div class="klasse-name" style="color:${c.color||'#4A6FA5'};">${escHtml(c.name)}</div>
-            <button class="btn btn-ghost btn-sm btn-icon kl-edit-btn" onclick="event.stopPropagation();openKlasseModal(${c.id})" title="Klasse bearbeiten">✎</button>
-          </div>
-          <div class="klasse-subject">${escHtml(c.subject||'')}</div>
-          <div class="klasse-card-footer">
-            <span class="kl-student-count" id="kl-count-${c.id}"></span>
-          </div>
-        </div>`;
-      } else {
-        return `<div class="klasse-add-card" onclick="openKlasseModal(null,${slot})">
-          <div class="klasse-add-icon">+</div>
-          <div>Klasse ${slot}</div>
-        </div>`;
+      // Prefer the class assigned to this slot; otherwise take next unslotted
+      let c = bySlot[slot];
+      if (!c && unslottedIdx < unslotted.length) {
+        c = unslotted[unslottedIdx++];
       }
+      if (c) return klasseCardHtml(c);
+      return `<div class="klasse-add-card" onclick="openKlasseModal(null,${slot})">
+        <div class="klasse-add-icon">+</div>
+        <div>Klasse ${slot}</div>
+      </div>`;
     }).join('');
   }
 
   renderGrid('klassen-grid-1', [1,2,3,4,5,6,7,8,9]);
   renderGrid('klassen-grid-2', [10,11,12,13,14,15,16,17,18]);
+
+  // Any classes still not shown (overflow beyond 18 slots) get their own section
+  const overflow = unslotted.slice(unslottedIdx);
+  const extraSection = el('klassen-extra-section');
+  if (overflow.length) {
+    extraSection.style.display = '';
+    el('klassen-grid-extra').innerHTML = overflow.map(klasseCardHtml).join('');
+  } else {
+    extraSection.style.display = 'none';
+  }
 }
 
 window.openKlasseModal = async function(klasseId, defaultSlot) {
