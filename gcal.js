@@ -385,3 +385,16 @@ const GCal = (() => {
     },
   };
 })();
+
+// Synchron beim Laden: Origin-Anzeige sofort befüllen (ohne async-Verzögerung)
+(function () {
+  function _setOrigin() {
+    var el = document.getElementById('gcal-origin-display');
+    if (el) el.textContent = window.location.origin;
+  }
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', _setOrigin);
+  } else {
+    _setOrigin();
+  }
+}());
