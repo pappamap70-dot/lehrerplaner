@@ -215,6 +215,7 @@ async function init() {
     return;
   }
 
+  await PinAuth.init();
   await launchApp();
 }
 
@@ -249,6 +250,14 @@ async function launchApp() {
   el('btn-import').addEventListener('click', () => el('import-file').click());
   el('import-file').addEventListener('change', importData);
   el('btn-new-year').addEventListener('click', newSchoolYear);
+  el('btn-change-pin').addEventListener('click', async () => {
+    closeSettings();
+    await PinAuth.changePin();
+    showToast('PIN geändert ✓', 'success');
+  });
+  document.addEventListener('pin-changed', () => {
+    showToast('PIN erfolgreich geändert ✓', 'success');
+  });
 
   // Event modal
   el('ev-cancel').addEventListener('click', closeEventModal);
@@ -2180,6 +2189,7 @@ async function setupNext() {
   } else if (_setupStep === 2) {
     await DB.setSetting('setupDone', true);
     el('setup-wizard').classList.add('hidden');
+    await PinAuth.init();
     await launchApp();
   }
 }

@@ -19,6 +19,25 @@
 <body>
 
 <!-- ══════════════════════════════════════════════════════════
+     PIN SCREEN
+══════════════════════════════════════════════════════════ -->
+<div id="pin-screen" class="pin-screen hidden">
+  <div class="pin-container">
+    <div class="pin-logo">
+      <img src="icon.svg" alt="LehrerPlaner" class="pin-logo-img">
+      <div class="pin-app-name">LehrerPlaner</div>
+    </div>
+    <div class="pin-title" id="pin-title">PIN eingeben</div>
+    <div class="pin-subtitle" id="pin-subtitle"></div>
+    <div class="pin-dots" id="pin-dots"></div>
+    <div class="pin-error" id="pin-error" style="display:none;"></div>
+    <div class="pin-lockout" id="pin-lockout" style="display:none;"></div>
+    <div class="pin-keypad" id="pin-keypad"></div>
+    <button class="pin-forgot" id="pin-forgot" style="display:none;">PIN vergessen?</button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
      SETUP WIZARD
 ══════════════════════════════════════════════════════════ -->
 <div id="setup-wizard" class="overlay-backdrop hidden">
@@ -270,6 +289,17 @@
             <div class="settings-row-sub">Kalendereinträge löschen, Klassen behalten</div>
           </div>
           <button class="btn btn-secondary" id="btn-new-year">Neues Schuljahr</button>
+        </div>
+      </div>
+      <!-- Security / PIN -->
+      <div class="settings-section">
+        <div class="settings-section-title">Sicherheit</div>
+        <div class="settings-row">
+          <div>
+            <div class="settings-row-label">PIN ändern</div>
+            <div class="settings-row-sub">Zugangscode für die App ändern</div>
+          </div>
+          <button class="btn btn-secondary" id="btn-change-pin">PIN ändern</button>
         </div>
       </div>
       <!-- About -->
@@ -788,6 +818,7 @@
 <script src="https://cdn.jsdelivr.net/npm/idb@7/build/umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="db.js"></script>
+<script src="pin.js"></script>
 <script src="app.js"></script>
 <script src="students.js"></script>
 </body>

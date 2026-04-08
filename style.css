@@ -1712,6 +1712,163 @@ svg { display: block; }
 .sp-print-footer { display: none; font-size: 11px; color: var(--text-muted); margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--border-light); }
 
 /* ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ─── */
+/* PIN SCREEN                                                 */
+/* ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ─── */
+.pin-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* prevent flash of content behind */
+}
+.pin-screen.hidden { display: none; }
+
+.pin-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  padding: 32px 24px;
+  width: 100%;
+  max-width: 380px;
+}
+
+.pin-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.pin-logo-img {
+  width: 72px;
+  height: 72px;
+  border-radius: 16px;
+  background: rgba(255,255,255,0.15);
+  padding: 6px;
+}
+.pin-app-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.5px;
+}
+
+.pin-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.95);
+  text-align: center;
+}
+.pin-subtitle {
+  font-size: 13px;
+  color: rgba(255,255,255,0.65);
+  text-align: center;
+  min-height: 18px;
+}
+
+/* Dots */
+.pin-dots {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
+}
+.pin-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.5);
+  background: transparent;
+  transition: background 0.15s, border-color 0.15s, transform 0.15s;
+}
+.pin-dot.filled {
+  background: #fff;
+  border-color: #fff;
+  transform: scale(1.1);
+}
+
+/* Error / lockout */
+.pin-error {
+  font-size: 13px;
+  color: #fca5a5;
+  text-align: center;
+  padding: 6px 16px;
+  background: rgba(239,68,68,0.2);
+  border-radius: 8px;
+  min-height: 32px;
+}
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20%      { transform: translateX(-8px); }
+  40%      { transform: translateX(8px); }
+  60%      { transform: translateX(-6px); }
+  80%      { transform: translateX(6px); }
+}
+.pin-error.shake { animation: shake 0.35s ease; }
+
+.pin-lockout {
+  font-size: 13px;
+  color: #fde68a;
+  text-align: center;
+  padding: 6px 16px;
+  background: rgba(245,158,11,0.2);
+  border-radius: 8px;
+}
+
+/* Keypad */
+.pin-keypad {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  width: 100%;
+  max-width: 300px;
+}
+.pin-key {
+  aspect-ratio: 1;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.15);
+  color: #fff;
+  font-size: 26px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.12s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  user-select: none;
+}
+.pin-key:hover { background: rgba(255,255,255,0.22); }
+.pin-key:active { background: rgba(255,255,255,0.32); transform: scale(0.94); }
+.pin-key:disabled { opacity: 0.35; cursor: not-allowed; }
+.pin-key.pin-key-empty { background: transparent; cursor: default; pointer-events: none; }
+.pin-key.pin-key-confirm {
+  background: rgba(255,255,255,0.25);
+  font-size: 22px;
+  font-weight: 700;
+  pointer-events: auto;
+  cursor: pointer;
+}
+.pin-key.pin-key-confirm:active { background: rgba(255,255,255,0.38); transform: scale(0.94); }
+
+.pin-forgot {
+  background: none;
+  border: none;
+  color: rgba(255,255,255,0.5);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-family: inherit;
+  text-decoration: underline;
+  margin-top: 4px;
+}
+.pin-forgot:hover { color: rgba(255,255,255,0.75); }
+
+/* ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ─── */
 /* PRINT STYLES                                               */
 /* ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ─── */
 @media print {

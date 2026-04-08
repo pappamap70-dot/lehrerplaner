@@ -5,6 +5,17 @@ const DB_NAME = 'lehrerplaner-db';
 const DB_VERSION = 3;
 let _db = null;
 
+// ── Encryption helpers (delegated to PinAuth via window.AppCrypto) ──
+async function _enc(obj) {
+  return window.AppCrypto ? window.AppCrypto.encrypt(obj) : obj;
+}
+async function _dec(obj) {
+  return window.AppCrypto ? window.AppCrypto.decrypt(obj) : obj;
+}
+async function _decAll(arr) {
+  return Promise.all((arr || []).map(r => _dec(r)));
+}
+
 async function getDB() {
   if (_db) return _db;
   _db = await idb.openDB(DB_NAME, DB_VERSION, {
@@ -191,49 +202,55 @@ const DB = {
   async deleteSubject(id) { return (await getDB()).delete('subjects', id); },
 
   // ── STUDENTS ────────────────────────────────────────────
+  // ── STUDENTS (encrypted) ────────────────────────────────
   async getStudentsByClass(classId) {
     const all = await (await getDB()).getAll('students');
-    return all.filter(s => s.classId === classId);
+    return _decAll(all.filter(s => s.classId === classId));
   },
-  async getStudent(id) { return (await getDB()).get('students', id); },
+  async getStudent(id) { return _dec(await (await getDB()).get('students', id)); },
   async saveStudent(s) {
     const db = await getDB();
-    if (s.id) { await db.put('students', s); return s.id; }
-    return db.add('students', s);
+    const rec = await _enc(s);
+    if (rec.id) { await db.put('students', rec); return rec.id; }
+    return db.add('students', rec);
   },
-  async getAllStudents() { return (await getDB()).getAll('students'); },
+  async getAllStudents() { return _decAll(await (await getDB()).getAll('students')); },
   async deleteStudent(id) { return (await getDB()).delete('students', id); },
 
-  // ── GRADES ──────────────────────────────────────────────
+  // ── GRADES (encrypted) ──────────────────────────────────
   async getGradesByStudent(studentId) {
-    return (await (await getDB()).getAll('grades')).filter(g => g.studentId === studentId);
+    return (await _decAll(await (await getDB()).getAll('grades'))).filter(g => g.studentId === studentId);
   },
   async getGradesByClass(classId) {
-    return (await (await getDB()).getAll('grades')).filter(g => g.classId === classId);
+    return (await _decAll(await (await getDB()).getAll('grades'))).filter(g => g.classId === classId);
   },
-  async getGrade(id) { return (await getDB()).get('grades', id); },
+  async getGrade(id) { return _dec(await (await getDB()).get('grades', id)); },
   async saveGrade(g) {
     const db = await getDB();
-    if (g.id) { await db.put('grades', g); return g.id; }
-    return db.add('grades', g);
+    const rec = await _enc(g);
+    if (rec.id) { await db.put('grades', rec); return rec.id; }
+    return db.add('grades', rec);
   },
   async deleteGrade(id) { return (await getDB()).delete('grades', id); },
 
-  // ── ATTENDANCE ──────────────────────────────────────────
+  // ── ATTENDANCE (encrypted) ──────────────────────────────
   async getAttendanceByClassAndDate(classId, datum) {
-    return (await (await getDB()).getAll('attendance')).filter(a => a.classId === classId && a.datum === datum);
+    const all = await (await getDB()).getAll('attendance');
+    return _decAll(all.filter(a => a.classId === classId && a.datum === datum));
   },
   async getAttendanceByStudent(studentId) {
-    return (await (await getDB()).getAll('attendance')).filter(a => a.studentId === studentId);
+    return _decAll((await (await getDB()).getAll('attendance')).filter(a => a.studentId === studentId));
   },
   async getAttendanceByClassAndMonth(classId, yearMonth) {
-    // yearMonth = 'YYYY-MM'
-    return (await (await getDB()).getAll('attendance')).filter(a => a.classId === classId && (a.datum||'').startsWith(yearMonth));
+    // yearMonth = 'YYYY-MM'; datum is kept as plaintext index field
+    const all = await (await getDB()).getAll('attendance');
+    return _decAll(all.filter(a => a.classId === classId && (a.datum||'').startsWith(yearMonth)));
   },
   async saveAttendance(a) {
     const db = await getDB();
-    if (a.id) { await db.put('attendance', a); return a.id; }
-    return db.add('attendance', a);
+    const rec = await _enc(a);
+    if (rec.id) { await db.put('attendance', rec); return rec.id; }
+    return db.add('attendance', rec);
   },
   async deleteAttendanceById(id) { return (await getDB()).delete('attendance', id); },
   async deleteAttendancesForClassAndDate(classId, datum) {
@@ -244,17 +261,18 @@ const DB = {
     }
   },
 
-  // ── REMARKS ─────────────────────────────────────────────
+  // ── REMARKS (encrypted) ─────────────────────────────────
   async getRemarksByStudent(studentId) {
-    return (await (await getDB()).getAll('remarks')).filter(r => r.studentId === studentId);
+    return (await _decAll(await (await getDB()).getAll('remarks'))).filter(r => r.studentId === studentId);
   },
   async getRemarksByClass(classId) {
-    return (await (await getDB()).getAll('remarks')).filter(r => r.classId === classId);
+    return (await _decAll(await (await getDB()).getAll('remarks'))).filter(r => r.classId === classId);
   },
   async saveRemark(r) {
     const db = await getDB();
-    if (r.id) { await db.put('remarks', r); return r.id; }
-    return db.add('remarks', r);
+    const rec = await _enc(r);
+    if (rec.id) { await db.put('remarks', rec); return rec.id; }
+    return db.add('remarks', rec);
   },
   async deleteRemark(id) { return (await getDB()).delete('remarks', id); },
 
@@ -262,14 +280,15 @@ const DB = {
   async getSeatingPlan(classId) { return (await getDB()).get('seatingPlan', classId); },
   async saveSeatingPlan(plan) { return (await getDB()).put('seatingPlan', plan); },
 
-  // ── HOMEWORK MISSED ─────────────────────────────────────
+  // ── HOMEWORK MISSED (encrypted) ─────────────────────────
   async getHomeworkByClass(classId) {
-    return (await (await getDB()).getAll('homeworkMissed')).filter(h => h.classId === classId);
+    return (await _decAll(await (await getDB()).getAll('homeworkMissed'))).filter(h => h.classId === classId);
   },
   async saveHomework(h) {
     const db = await getDB();
-    if (h.id) { await db.put('homeworkMissed', h); return h.id; }
-    return db.add('homeworkMissed', h);
+    const rec = await _enc(h);
+    if (rec.id) { await db.put('homeworkMissed', rec); return rec.id; }
+    return db.add('homeworkMissed', rec);
   },
   async deleteHomework(id) { return (await getDB()).delete('homeworkMissed', id); },
 
