@@ -267,17 +267,17 @@
         <div class="settings-row">
           <div>
             <div class="settings-row-label">Daten exportieren</div>
-            <div class="settings-row-sub">Alle Einträge als .json Datei sichern</div>
+            <div class="settings-row-sub">Verschlüsseltes Backup (.lpe) mit Passwort erstellen</div>
           </div>
           <button class="btn btn-primary" id="btn-export">Backup erstellen</button>
         </div>
         <div class="settings-row">
           <div>
             <div class="settings-row-label">Daten importieren</div>
-            <div class="settings-row-sub">Backup wiederherstellen (.json)</div>
+            <div class="settings-row-sub">Backup wiederherstellen (.lpe verschlüsselt, .json unverschlüsselt)</div>
           </div>
           <button class="btn btn-secondary" id="btn-import">Backup laden</button>
-          <input type="file" id="import-file" accept=".json" style="display:none;">
+          <input type="file" id="import-file" accept=".lpe,.json" style="display:none;">
         </div>
       </div>
       <!-- New school year -->
@@ -317,6 +317,63 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-primary" id="settings-save">Speichern</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     BACKUP EXPORT PASSWORD DIALOG
+══════════════════════════════════════════════════════════ -->
+<div id="backup-pw-modal" class="overlay-backdrop hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Backup verschlüsseln</span>
+      <button class="modal-close" id="backup-pw-close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Passwort</label>
+        <input type="password" class="form-input" id="backup-pw-input"
+               placeholder="Mindestens 8 Zeichen" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Passwort bestätigen</label>
+        <input type="password" class="form-input" id="backup-pw-confirm"
+               placeholder="Passwort wiederholen" autocomplete="new-password">
+      </div>
+      <div class="backup-pw-note">
+        <strong>Wichtig:</strong> Merken Sie sich Ihr Backup-Passwort.
+        Es wird nicht gespeichert und kann nicht wiederhergestellt werden.
+      </div>
+      <div class="backup-pw-error" id="backup-pw-error" style="display:none;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="backup-pw-cancel">Abbrechen</button>
+      <button class="btn btn-primary" id="backup-pw-ok">Backup erstellen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     BACKUP IMPORT PASSWORD DIALOG
+══════════════════════════════════════════════════════════ -->
+<div id="backup-import-pw-modal" class="overlay-backdrop hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Backup entschlüsseln</span>
+      <button class="modal-close" id="backup-import-pw-close">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label class="form-label">Backup-Passwort</label>
+        <input type="password" class="form-input" id="backup-import-pw-input"
+               placeholder="Passwort eingeben" autocomplete="current-password">
+      </div>
+      <div class="backup-pw-error" id="backup-import-pw-error" style="display:none;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="backup-import-pw-cancel">Abbrechen</button>
+      <button class="btn btn-primary" id="backup-import-pw-ok">Entschlüsseln</button>
     </div>
   </div>
 </div>

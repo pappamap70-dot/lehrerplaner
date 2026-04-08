@@ -1868,6 +1868,56 @@ svg { display: block; }
 }
 .pin-forgot:hover { color: rgba(255,255,255,0.75); }
 
+/* PIN length selector (shown instead of keypad during setup-length mode) */
+.pin-length-selector {
+  display: flex;
+  gap: 16px;
+  width: 100%;
+  max-width: 300px;
+  justify-content: center;
+}
+.pin-length-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 20px 16px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 16px;
+  background: rgba(255,255,255,0.12);
+  color: #fff;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+.pin-length-btn:hover  { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); }
+.pin-length-btn:active { background: rgba(255,255,255,0.3); transform: scale(0.96); }
+.pin-length-num   { font-size: 40px; font-weight: 700; line-height: 1; }
+.pin-length-label { font-size: 13px; font-weight: 500; opacity: 0.8; }
+
+/* Backup password dialog styles */
+.backup-pw-note {
+  margin-top: 12px;
+  padding: 10px 14px;
+  background: var(--warning-bg, #fef3c7);
+  border: 1px solid var(--warning-border, #fde68a);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--warning-text, #92400e);
+  line-height: 1.5;
+}
+.backup-pw-error {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: var(--danger-bg, #fee2e2);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--danger, #ef4444);
+}
+
 /* ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ─── */
 /* PRINT STYLES                                               */
 /* ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ─── */

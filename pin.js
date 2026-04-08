@@ -12,6 +12,8 @@ const PinAuth = (() => {
   let _mode         = 'verify';
   let _inputBuffer  = '';
   let _newPinBuf    = '';
+  let _pinLength    = 4;      // 4 or 6, loaded from DB on init
+  let _setupLength  = 4;      // length chosen during setup
   let _attempts     = 0;
   let _lockedUntil  = 0;
   let _lockTimer    = null;
@@ -88,8 +90,10 @@ const PinAuth = (() => {
     const dots = el('pin-dots');
     if (!dots) return;
     dots.innerHTML = '';
-    // Show max(4, count) dots up to 6
-    const total = Math.max(4, Math.min(count + 1, 6));
+    // During length-selection step there are no dots to show
+    if (_mode === 'setup-length') return;
+    const len = (_mode === 'setup' || _mode === 'setup-confirm') ? _setupLength : _pinLength;
+    const total = Math.max(len, count);
     for (let i = 0; i < total; i++) {
       const d = document.createElement('div');
       d.className = 'pin-dot' + (i < count ? ' filled' : '');
@@ -101,6 +105,29 @@ const PinAuth = (() => {
     const kp = el('pin-keypad');
     if (!kp) return;
     kp.innerHTML = '';
+    // Length selection step: show two large buttons instead of numpad
+    if (_mode === 'setup-length' || _mode === 'change-length') {
+      kp.className = 'pin-length-selector';
+      const nextMode = _mode === 'setup-length' ? 'setup' : 'change-new';
+      [4, 6].forEach(len => {
+        const btn = document.createElement('button');
+        btn.className = 'pin-length-btn';
+        btn.innerHTML = `<span class="pin-length-num">${len}</span><span class="pin-length-label">Stellen</span>`;
+        btn.addEventListener('click', () => {
+          _setupLength = len;
+          _mode = nextMode;
+          setTitle(_mode === 'setup' ? 'PIN festlegen' : 'Neuer PIN');
+          setSubtitle(`${len}-stelligen PIN eingeben`);
+          setError('');
+          kp.className = 'pin-keypad';
+          renderDots(0);
+          renderKeypad();
+        });
+        kp.appendChild(btn);
+      });
+      return;
+    }
+    kp.className = 'pin-keypad';
     ['1','2','3','4','5','6','7','8','9','','0','⌫'].forEach(k => {
       const btn = document.createElement('button');
       btn.className = 'pin-key' + (k === '' ? ' pin-key-empty' : '');
@@ -139,40 +166,41 @@ const PinAuth = (() => {
   // ── Key press handler ────────────────────────────────────────
   function pressKey(k) {
     if (_lockedUntil && Date.now() < _lockedUntil) return;
+    const maxLen = (_mode === 'setup' || _mode === 'setup-confirm') ? _setupLength : _pinLength;
     if (k === 'del') {
       _inputBuffer = _inputBuffer.slice(0, -1);
       renderDots(_inputBuffer.length);
       setError('');
+      updateConfirmKey(maxLen);
       return;
     }
-    if (_inputBuffer.length >= 6) return;
+    if (_inputBuffer.length >= maxLen) return;
     _inputBuffer += k;
     renderDots(_inputBuffer.length);
     setError('');
 
-    // Auto-submit at 6 digits; for 4–5 wait for confirm button
-    if (_inputBuffer.length === 6) {
+    // Auto-submit when PIN is complete
+    if (_inputBuffer.length === maxLen) {
       setTimeout(() => submitCurrent(), 150);
     }
-    // Show confirm key when >= 4
-    updateConfirmKey();
+    updateConfirmKey(maxLen);
   }
 
-  function updateConfirmKey() {
+  function updateConfirmKey(maxLen) {
+    if (!maxLen) maxLen = (_mode === 'setup' || _mode === 'setup-confirm') ? _setupLength : _pinLength;
     const kp = el('pin-keypad');
-    if (!kp) return;
+    if (!kp || kp.classList.contains('pin-length-selector')) return;
     const keys = kp.querySelectorAll('.pin-key');
-    // The empty cell is index 9 (0-based)
-    const emptyBtn = keys[9];
+    const emptyBtn = keys[9]; // cell between 7 and 0
     if (!emptyBtn) return;
-    if (_inputBuffer.length >= 4 && _inputBuffer.length < 6) {
+    // Show confirm button for intermediate lengths (between min and max)
+    if (_inputBuffer.length >= 4 && _inputBuffer.length < maxLen) {
       emptyBtn.textContent = '✓';
       emptyBtn.className = 'pin-key pin-key-confirm';
-      // Replace listener
       const newBtn = emptyBtn.cloneNode(true);
       newBtn.addEventListener('click', () => submitCurrent());
       emptyBtn.parentNode.replaceChild(newBtn, emptyBtn);
-    } else if (_inputBuffer.length < 4) {
+    } else {
       emptyBtn.textContent = '';
       emptyBtn.className = 'pin-key pin-key-empty';
       const newBtn = emptyBtn.cloneNode(true);
@@ -192,12 +220,13 @@ const PinAuth = (() => {
   // ── Mode handlers ────────────────────────────────────────────
   async function handleInput(pin) {
     switch (_mode) {
-      case 'setup':      return handleSetup(pin);
-      case 'setup-confirm': return handleSetupConfirm(pin);
-      case 'verify':     return handleVerify(pin);
-      case 'change-old': return handleChangeOld(pin);
-      case 'change-new': return handleChangeNew(pin);
+      case 'setup':          return handleSetup(pin);
+      case 'setup-confirm':  return handleSetupConfirm(pin);
+      case 'verify':         return handleVerify(pin);
+      case 'change-old':     return handleChangeOld(pin);
+      case 'change-new':     return handleChangeNew(pin);
       case 'change-confirm': return handleChangeConfirm(pin);
+      // 'setup-length' and 'change-length' are handled via button clicks, not submitCurrent
     }
   }
 
@@ -214,11 +243,14 @@ const PinAuth = (() => {
       setError('PINs stimmen nicht überein');
       _mode = 'setup';
       setTitle('PIN festlegen');
-      setSubtitle('Wähle einen PIN mit 4–6 Ziffern');
+      setSubtitle(`${_setupLength}-stelligen PIN eingeben`);
       _newPinBuf = '';
+      renderDots(0);
       return;
     }
     await saveNewPin(pin);
+    await DB.setSetting('pinLength', _setupLength);
+    _pinLength = _setupLength;
     hidePinScreen();
     if (_resolve) { _resolve(); _resolve = null; }
     startAutoLock();
@@ -256,19 +288,24 @@ const PinAuth = (() => {
       setError('Falscher PIN');
       return;
     }
+    // Let user choose new PIN length
     _newPinBuf = '';
-    _mode = 'change-new';
-    setTitle('Neuer PIN');
-    setSubtitle('Wähle einen neuen PIN (4–6 Ziffern)');
+    _inputBuffer = '';
+    _mode = 'change-length';
+    setTitle('Neue PIN-Länge');
+    setSubtitle('Wähle 4 oder 6 Stellen');
     setError('');
+    renderDots(0);
+    renderKeypad();
   }
 
   function handleChangeNew(pin) {
     _newPinBuf = pin;
     _mode = 'change-confirm';
     setTitle('PIN bestätigen');
-    setSubtitle('Neuen PIN wiederholen');
+    setSubtitle(`${_setupLength}-stelligen PIN wiederholen`);
     setError('');
+    renderDots(0);
   }
 
   async function handleChangeConfirm(pin) {
@@ -276,22 +313,24 @@ const PinAuth = (() => {
       setError('PINs stimmen nicht überein');
       _mode = 'change-new';
       setTitle('Neuer PIN');
-      setSubtitle('Wähle einen neuen PIN (4–6 Ziffern)');
+      setSubtitle(`${_setupLength}-stelligen PIN eingeben`);
       _newPinBuf = '';
+      renderDots(0);
       return;
     }
     // Re-encrypt all data with new key
-    const oldKey = _key;
+    const oldKey  = _key;
     const newSalt = randomHex(16);
     const newKey  = await deriveKey(pin, newSalt);
 
     await reEncryptSensitiveStores(oldKey, newKey);
 
     _key = newKey;
+    _pinLength = _setupLength;
     window.AppCrypto = { encrypt, decrypt };
     await saveNewPin(pin, newSalt);
+    await DB.setSetting('pinLength', _pinLength);
     hidePinScreen();
-    // Signal completion via event
     document.dispatchEvent(new CustomEvent('pin-changed'));
   }
 
@@ -428,8 +467,10 @@ const PinAuth = (() => {
       return new Promise(async resolve => {
         _resolve = resolve;
         const pinHash = await DB.getSetting('pinHash');
+        _pinLength    = (await DB.getSetting('pinLength')) || 4;
         if (!pinHash) {
-          showPinScreen('setup', 'PIN festlegen', 'Wähle einen PIN mit 4–6 Ziffern');
+          // First setup: let user choose PIN length first
+          showPinScreen('setup-length', 'PIN-Länge wählen', 'Wähle 4 oder 6 Stellen');
         } else {
           showPinScreen('verify', 'PIN eingeben', '');
         }

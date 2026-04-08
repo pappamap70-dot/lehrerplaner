@@ -2026,32 +2026,137 @@ async function saveSettings() {
 }
 
 // ══════════════════════════════════════════════════════════════
+// BACKUP CRYPTO (AES-256-GCM + PBKDF2, password not stored)
+// ══════════════════════════════════════════════════════════════
+function _bkHexToBytes(hex) {
+  const a = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) a[i / 2] = parseInt(hex.substr(i, 2), 16);
+  return a;
+}
+function _bkBytesToHex(buf) {
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+async function _bkDeriveKey(password, saltHex) {
+  const km = await crypto.subtle.importKey(
+    'raw', new TextEncoder().encode(password), 'PBKDF2', false, ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: _bkHexToBytes(saltHex), iterations: 200000, hash: 'SHA-256' },
+    km, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']
+  );
+}
+async function _bkEncrypt(password, jsonString) {
+  const salt = _bkBytesToHex(crypto.getRandomValues(new Uint8Array(16)));
+  const iv   = _bkBytesToHex(crypto.getRandomValues(new Uint8Array(12)));
+  const key  = await _bkDeriveKey(password, salt);
+  const ct   = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: _bkHexToBytes(iv) }, key,
+    new TextEncoder().encode(jsonString)
+  );
+  return JSON.stringify({ v: 1, t: 'LehrerPlanerExport', c: new Date().toISOString(), s: salt, i: iv, d: _bkBytesToHex(ct) });
+}
+async function _bkDecrypt(password, envelopeString) {
+  const env = JSON.parse(envelopeString);
+  if (env.v !== 1 || env.t !== 'LehrerPlanerExport') throw new Error('Ungültige Datei');
+  const key = await _bkDeriveKey(password, env.s);
+  const plain = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: _bkHexToBytes(env.i) }, key, _bkHexToBytes(env.d)
+  );
+  return JSON.parse(new TextDecoder().decode(plain));
+}
+
+// Backup export password dialog — resolves with password string or null (cancelled)
+function _promptBackupExportPw() {
+  return new Promise(resolve => {
+    el('backup-pw-input').value   = '';
+    el('backup-pw-confirm').value = '';
+    el('backup-pw-error').style.display = 'none';
+    el('backup-pw-modal').classList.remove('hidden');
+    setTimeout(() => el('backup-pw-input').focus(), 50);
+
+    function showErr(msg) {
+      const e = el('backup-pw-error');
+      e.textContent = msg;
+      e.style.display = 'block';
+    }
+    function onOk() {
+      const pw  = el('backup-pw-input').value;
+      const pw2 = el('backup-pw-confirm').value;
+      if (pw.length < 8)  { showErr('Passwort muss mindestens 8 Zeichen haben'); return; }
+      if (pw !== pw2)      { showErr('Passwörter stimmen nicht überein'); return; }
+      cleanup(); resolve(pw);
+    }
+    function onCancel() { cleanup(); resolve(null); }
+    function cleanup() {
+      el('backup-pw-modal').classList.add('hidden');
+      el('backup-pw-ok').removeEventListener('click', onOk);
+      el('backup-pw-cancel').removeEventListener('click', onCancel);
+      el('backup-pw-close').removeEventListener('click', onCancel);
+    }
+    el('backup-pw-ok').addEventListener('click', onOk);
+    el('backup-pw-cancel').addEventListener('click', onCancel);
+    el('backup-pw-close').addEventListener('click', onCancel);
+    el('backup-pw-confirm').addEventListener('keydown', e => { if (e.key === 'Enter') onOk(); });
+    el('backup-pw-input').addEventListener('keydown', e => { if (e.key === 'Enter') el('backup-pw-confirm').focus(); });
+  });
+}
+
+// Backup import password dialog — resolves with password string or null (cancelled)
+function _promptBackupImportPw() {
+  return new Promise(resolve => {
+    el('backup-import-pw-input').value = '';
+    el('backup-import-pw-error').style.display = 'none';
+    el('backup-import-pw-modal').classList.remove('hidden');
+    setTimeout(() => el('backup-import-pw-input').focus(), 50);
+
+    function onOk() {
+      const pw = el('backup-import-pw-input').value;
+      if (!pw) { el('backup-import-pw-error').textContent = 'Bitte Passwort eingeben'; el('backup-import-pw-error').style.display = 'block'; return; }
+      cleanup(); resolve(pw);
+    }
+    function onCancel() { cleanup(); resolve(null); }
+    function cleanup() {
+      el('backup-import-pw-modal').classList.add('hidden');
+      el('backup-import-pw-ok').removeEventListener('click', onOk);
+      el('backup-import-pw-cancel').removeEventListener('click', onCancel);
+      el('backup-import-pw-close').removeEventListener('click', onCancel);
+    }
+    el('backup-import-pw-ok').addEventListener('click', onOk);
+    el('backup-import-pw-cancel').addEventListener('click', onCancel);
+    el('backup-import-pw-close').addEventListener('click', onCancel);
+    el('backup-import-pw-input').addEventListener('keydown', e => { if (e.key === 'Enter') onOk(); });
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
 // BACKUP & RESTORE
 // ══════════════════════════════════════════════════════════════
 async function exportData() {
+  const pw = await _promptBackupExportPw();
+  if (pw === null) return; // cancelled
   try {
-    const data = await DB.exportAll();
-    const json = JSON.stringify(data, null, 2);
-    const blob = new Blob([json], { type:'application/json' });
+    const data      = await DB.exportAll();
+    const json      = JSON.stringify(data);
+    const encrypted = await _bkEncrypt(pw, json);
+    const blob = new Blob([encrypted], { type: 'application/json' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
-    const date = new Date().toISOString().slice(0,10);
+    const date = new Date().toISOString().slice(0, 10);
     a.href     = url;
-    a.download = `LehrerPlaner-Backup-${date}.json`;
+    a.download = `LehrerPlaner-Backup-${date}.lpe`;
     a.click();
     URL.revokeObjectURL(url);
     await DB.setSetting('lastBackup', new Date().toISOString());
     App.settings.lastBackup = new Date().toISOString();
     el('dash-backup-banner')?.classList.add('hidden');
-    showToast('Backup erstellt ✓','success');
+    showToast('Verschlüsseltes Backup erstellt ✓', 'success');
   } catch(err) {
-    showToast('Fehler beim Export: ' + err.message,'error');
+    showToast('Fehler beim Export: ' + err.message, 'error');
   }
 }
 
 window.dismissBackupBanner = function() {
   el('dash-backup-banner')?.classList.add('hidden');
-  // Snooze for 2 days
   DB.setSetting('backupBannerSnoozed', new Date().toISOString());
 };
 
@@ -2069,16 +2174,31 @@ async function importData(e) {
 
   try {
     const text = await file.text();
-    const data = JSON.parse(text);
+    let data;
+
+    if (file.name.endsWith('.lpe')) {
+      const pw = await _promptBackupImportPw();
+      if (pw === null) return;
+      try {
+        data = await _bkDecrypt(pw, text);
+      } catch(_) {
+        showToast('Falsches Passwort oder ungültige Datei', 'error');
+        return;
+      }
+    } else {
+      // Legacy plain JSON backup
+      data = JSON.parse(text);
+    }
+
     await DB.importAll(data);
     App.settings = await DB.getAllSettings();
     App.classes  = await DB.getClasses();
     el('header-teacher').textContent = App.settings.teacherName || '';
     closeSettings();
-    showToast('Backup wiederhergestellt ✓','success');
+    showToast('Backup wiederhergestellt ✓', 'success');
     await App.navigate(App.currentView);
   } catch(err) {
-    showToast('Fehler beim Import: ' + err.message,'error');
+    showToast('Fehler beim Import: ' + err.message, 'error');
   }
 }
 
