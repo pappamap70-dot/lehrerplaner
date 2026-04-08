@@ -259,29 +259,33 @@ async function launchApp() {
     showToast('PIN erfolgreich geändert ✓', 'success');
   });
 
-  // Google Calendar
-  GCal.init();
-  el('btn-gcal-connect').addEventListener('click', async () => {
-    el('btn-gcal-connect').textContent = 'Verbinde…';
-    el('btn-gcal-connect').disabled = true;
-    try {
-      await GCal.connect();
-      showToast('Google Kalender verbunden ✓', 'success');
-    } catch(e) {
-      showToast('Fehler: ' + e.message, 'error');
-      el('btn-gcal-connect').textContent = 'Mit Google verbinden';
-      el('btn-gcal-connect').disabled = false;
-    }
-  });
-  el('btn-gcal-sync').addEventListener('click', () => _gcalSync());
-  el('cal-gcal-sync').addEventListener('click', () => _gcalSync());
-  el('btn-gcal-disconnect').addEventListener('click', async () => {
-    const ok = await confirm2('Google Kalender trennen?',
-      'Die Verbindung wird getrennt. Bereits importierte Google-Termine bleiben erhalten.');
-    if (!ok) return;
-    await GCal.disconnect();
-    showToast('Google Kalender getrennt', '');
-  });
+  // Google Calendar (null-safe in case cached HTML is stale)
+  if (typeof GCal !== 'undefined') {
+    GCal.init();
+    el('btn-gcal-connect')?.addEventListener('click', async () => {
+      const btn = el('btn-gcal-connect');
+      if (btn) { btn.textContent = 'Verbinde…'; btn.disabled = true; }
+      try {
+        await GCal.connect();
+        showToast('Google Kalender verbunden ✓', 'success');
+      } catch(e) {
+        // Show error both as toast and in the status text so it's visible behind the modal
+        showToast('Fehler: ' + e.message, 'error');
+        const statusEl = el('gcal-status-text');
+        if (statusEl) statusEl.textContent = '⚠ ' + e.message;
+        if (btn) { btn.textContent = 'Mit Google verbinden'; btn.disabled = false; }
+      }
+    });
+    el('btn-gcal-sync')?.addEventListener('click', () => _gcalSync());
+    el('cal-gcal-sync')?.addEventListener('click', () => _gcalSync());
+    el('btn-gcal-disconnect')?.addEventListener('click', async () => {
+      const ok = await confirm2('Google Kalender trennen?',
+        'Die Verbindung wird getrennt. Bereits importierte Google-Termine bleiben erhalten.');
+      if (!ok) return;
+      await GCal.disconnect();
+      showToast('Google Kalender getrennt', '');
+    });
+  }
 
   // Event modal
   el('ev-cancel').addEventListener('click', closeEventModal);
@@ -2036,7 +2040,7 @@ function openSettings() {
     el('settings-storage').textContent = 'Nicht verfügbar';
   }
 
-  GCal.updateSettingsUI();
+  if (typeof GCal !== 'undefined') GCal.updateSettingsUI();
   el('settings-panel').classList.remove('hidden');
 }
 
