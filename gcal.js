@@ -1,6 +1,9 @@
 // gcal.js — Google Calendar Sync für LehrerPlaner
 // Datenschutz: nur Termine ohne Personenbezug werden synchronisiert.
 // Keine Schülerdaten, Noten, Anwesenheit oder Bemerkungen.
+//
+// Google Cloud Console → Branding → Datenschutzrichtlinien-URL hinterlegen:
+// https://pappamap70-dot.github.io/lehrerplaner/datenschutz.html
 'use strict';
 
 const GCal = (() => {

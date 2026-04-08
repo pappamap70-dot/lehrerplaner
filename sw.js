@@ -1,5 +1,5 @@
 // sw.js — LehrerPlaner Service Worker (cache-first, full offline)
-const CACHE = 'lehrerplaner-v12';
+const CACHE = 'lehrerplaner-v13';
 const BASE  = '/';
 
 // All local app files — must be cached for full offline support
@@ -15,6 +15,7 @@ const LOCAL_ASSETS = [
   '/style.css',
   '/manifest.json',
   '/icon.svg',
+  '/datenschutz.html',
 ];
 
 // CDN assets — cached opportunistically; failures are non-fatal

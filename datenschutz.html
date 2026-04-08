@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex">
+  <title>Datenschutzerklärung — LehrerPlaner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap">
+  <style>
+    :root {
+      --primary:      #4A6FA5;
+      --primary-dark: #2d4f7a;
+      --bg:           #F5F7FA;
+      --surface:      #FFFFFF;
+      --border:       #DDE2EA;
+      --text:         #1A1A2E;
+      --text-2:       #4B5563;
+      --text-muted:   #9CA3AF;
+      --success:      #10B981;
+      --font:         'Inter', system-ui, -apple-system, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      font-size: 15px;
+      line-height: 1.7;
+    }
+
+    .page {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+    }
+
+    /* Header */
+    .site-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 40px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .site-header a {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      text-decoration: none;
+      color: var(--primary);
+      font-weight: 600;
+      font-size: 16px;
+    }
+
+    .site-header a:hover { color: var(--primary-dark); }
+
+    .header-logo-svg { width: 32px; height: 32px; flex-shrink: 0; }
+
+    /* Document header */
+    .doc-header { margin-bottom: 36px; }
+
+    .doc-header h1 {
+      font-size: 26px;
+      font-weight: 700;
+      color: var(--text);
+      margin-bottom: 8px;
+    }
+
+    .doc-meta {
+      font-size: 13px;
+      color: var(--text-muted);
+    }
+
+    /* Sections */
+    .section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px 28px;
+      margin-bottom: 16px;
+    }
+
+    .section h2 {
+      font-size: 15px;
+      font-weight: 600;
+      color: var(--primary);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section h2::before {
+      content: '';
+      display: inline-block;
+      width: 3px;
+      height: 16px;
+      background: var(--primary);
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .section p { color: var(--text-2); margin-bottom: 10px; }
+    .section p:last-child { margin-bottom: 0; }
+
+    .section ul, .section ol {
+      color: var(--text-2);
+      padding-left: 20px;
+      margin-bottom: 10px;
+    }
+
+    .section ul:last-child,
+    .section ol:last-child { margin-bottom: 0; }
+
+    .section li { margin-bottom: 4px; }
+
+    .placeholder {
+      background: #FFF3CD;
+      border: 1px solid #F59E0B;
+      border-radius: 6px;
+      padding: 10px 14px;
+      font-size: 13px;
+      color: #92400E;
+      margin-top: 10px;
+    }
+
+    .placeholder strong { display: block; margin-bottom: 4px; }
+
+    .badge-local {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #D1FAE5;
+      color: #065F46;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: 20px;
+      margin-bottom: 12px;
+    }
+
+    .badge-optional {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #DBEAFE;
+      color: #1E40AF;
+      font-size: 12px;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: 20px;
+      margin-bottom: 12px;
+    }
+
+    .highlight-box {
+      background: #F0FDF4;
+      border: 1px solid #86EFAC;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-top: 12px;
+    }
+
+    .highlight-box p { color: #14532D; margin: 0; font-size: 14px; }
+
+    a { color: var(--primary); }
+    a:hover { color: var(--primary-dark); }
+
+    /* Footer */
+    .site-footer {
+      margin-top: 48px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text-muted);
+      text-align: center;
+    }
+
+    /* Print */
+    @media print {
+      body { background: white; font-size: 12pt; }
+      .site-header a { color: black; }
+      .section { border: 1px solid #ccc; box-shadow: none; }
+      .section h2 { color: black; }
+      .section h2::before { background: black; }
+      a { color: black; text-decoration: underline; }
+      .back-link { display: none; }
+    }
+
+    @media (max-width: 600px) {
+      .page { padding: 20px 16px 48px; }
+      .section { padding: 18px 16px; }
+      .doc-header h1 { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="page">
+
+  <!-- Back to app -->
+  <header class="site-header">
+    <a href="/" class="back-link">
+      <svg class="header-logo-svg" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <rect width="32" height="32" rx="6" fill="#4A6FA5"/>
+        <rect x="7" y="6" width="14" height="20" rx="2" fill="rgba(255,255,255,0.9)"/>
+        <rect x="10" y="10" width="8" height="1.5" rx="0.75" fill="#4A6FA5"/>
+        <rect x="10" y="13" width="6" height="1" rx="0.5" fill="rgba(74,111,165,0.6)"/>
+        <rect x="10" y="15.5" width="7" height="1" rx="0.5" fill="rgba(74,111,165,0.6)"/>
+        <rect x="10" y="18" width="5" height="1" rx="0.5" fill="rgba(74,111,165,0.6)"/>
+      </svg>
+      LehrerPlaner
+    </a>
+  </header>
+
+  <!-- Title -->
+  <div class="doc-header">
+    <h1>Datenschutzerklärung</h1>
+    <div class="doc-meta">Letzte Aktualisierung: April 2026</div>
+  </div>
+
+  <!-- Verantwortlicher -->
+  <div class="section">
+    <h2>Verantwortlicher</h2>
+    <p>
+      Diese App wird <strong>privat und nicht kommerziell</strong> betrieben.
+      Es werden keine Nutzerdaten zu geschäftlichen Zwecken verarbeitet.
+    </p>
+    <div class="placeholder">
+      <strong>Platzhalter — bitte ausfüllen:</strong>
+      [NAME]<br>
+      [ADRESSE]<br>
+      [E-MAIL]
+    </div>
+  </div>
+
+  <!-- Datenspeicherung -->
+  <div class="section">
+    <h2>Welche Daten werden gespeichert?</h2>
+    <div class="badge-local">✓ Nur lokal auf deinem Gerät</div>
+    <p>
+      Alle Daten werden <strong>ausschließlich lokal</strong> im Browser gespeichert
+      (IndexedDB). Es gibt keinen Server, keine Cloud und keine Weitergabe an Dritte.
+    </p>
+    <p>Folgende Daten können in der App erfasst werden:</p>
+    <ul>
+      <li>Klassenbezeichnungen</li>
+      <li>Schülernamen</li>
+      <li>Noten und Leistungsbewertungen</li>
+      <li>Anwesenheitsdaten</li>
+      <li>Bemerkungen und Notizen</li>
+      <li>Kalendereinträge und Termine</li>
+    </ul>
+    <div class="highlight-box">
+      <p>
+        Backup-Dateien (.lpe) werden <strong>verschlüsselt</strong> exportiert und
+        liegen ausschließlich dort, wo du sie selbst speicherst.
+        Ohne dein Passwort sind sie für niemanden lesbar.
+      </p>
+    </div>
+  </div>
+
+  <!-- Google Kalender -->
+  <div class="section">
+    <h2>Google Kalender Integration</h2>
+    <div class="badge-optional">Optional — nur auf ausdrücklichen Wunsch</div>
+    <p>
+      Die Google-Kalender-Synchronisation ist <strong>deaktiviert, bis du sie
+      selbst einrichtest</strong>. Sie ist vollständig optional.
+    </p>
+    <p>Wenn du die Synchronisation aktivierst, gilt:</p>
+    <ul>
+      <li>Synchronisiert werden <strong>nur</strong>: Termine, Schultermine,
+          Konferenzen und Klassenarbeiten</li>
+      <li><strong>Niemals synchronisiert</strong>: Schülernamen, Noten,
+          Anwesenheitsdaten, Bemerkungen</li>
+      <li>Google erhält <strong>keinerlei Schüler- oder Leistungsdaten</strong></li>
+      <li>Die Verbindung kann jederzeit in den Einstellungen getrennt werden</li>
+    </ul>
+    <p>
+      Für die Verarbeitung deiner Daten durch Google gelten zusätzlich die
+      <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer">
+        Datenschutzbestimmungen von Google ↗
+      </a>.
+    </p>
+  </div>
+
+  <!-- Keine Weitergabe -->
+  <div class="section">
+    <h2>Keine Weitergabe an Dritte</h2>
+    <p>
+      Es findet <strong>keinerlei Weitergabe</strong> von Daten an Dritte statt.
+      Die App enthält:
+    </p>
+    <ul>
+      <li>Kein Tracking</li>
+      <li>Keine Werbung</li>
+      <li>Keine Analyse-Tools (kein Google Analytics, kein Matomo o. Ä.)</li>
+      <li>Keinen externen Server</li>
+    </ul>
+  </div>
+
+  <!-- Betroffenenrechte -->
+  <div class="section">
+    <h2>Deine Rechte</h2>
+    <p>Du hast jederzeit die volle Kontrolle über deine Daten:</p>
+    <ul>
+      <li>Alle Daten können in den <strong>Einstellungen → Alle Daten löschen</strong>
+          vollständig entfernt werden</li>
+      <li>Backups können exportiert und danach aus dem Browser gelöscht werden</li>
+      <li>Die Google-Kalender-Verbindung ist jederzeit trennbar —
+          deine Daten bleiben dabei in der App erhalten</li>
+    </ul>
+  </div>
+
+  <!-- Hosting -->
+  <div class="section">
+    <h2>Hosting über GitHub Pages</h2>
+    <p>
+      Die <strong>App-Dateien</strong> (HTML, CSS, JavaScript — kein Inhalt,
+      keine Nutzerdaten) werden über
+      <a href="https://pages.github.com" target="_blank" rel="noopener noreferrer">
+        GitHub Pages ↗
+      </a>
+      bereitgestellt.
+    </p>
+    <p>
+      GitHub kann dabei technische Zugriffsdaten (IP-Adressen, Zeitstempel)
+      protokollieren. Weitere Informationen findest du in der
+      <a href="https://docs.github.com/site-policy/privacy-policies/github-general-privacy-statement"
+         target="_blank" rel="noopener noreferrer">
+        Datenschutzerklärung von GitHub ↗
+      </a>.
+    </p>
+    <p>
+      Deine <strong>eigentlichen Daten</strong> (Schüler, Noten, Termine usw.)
+      verlassen deinen Browser zu keiner Zeit und werden niemals an GitHub übertragen.
+    </p>
+  </div>
+
+  <!-- Änderungen -->
+  <div class="section">
+    <h2>Änderungen dieser Erklärung</h2>
+    <p>
+      Bei wesentlichen Änderungen wird das Datum der letzten Aktualisierung
+      oben auf dieser Seite angepasst. Da keine personenbezogenen Daten
+      außerhalb deines Geräts verarbeitet werden, sind Benachrichtigungen
+      nicht vorgesehen.
+    </p>
+  </div>
+
+  <footer class="site-footer">
+    LehrerPlaner — privat betriebene PWA · Letzte Aktualisierung: April 2026
+  </footer>
+
+</div>
+
+</body>
+</html>
