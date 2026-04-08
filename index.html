@@ -294,15 +294,56 @@
       <!-- Google Calendar Sync -->
       <div class="settings-section">
         <div class="settings-section-title">Google Kalender</div>
-        <!-- Not connected -->
-        <div class="settings-row" id="gcal-connect-row">
+
+        <!-- Zustand 1: Wizard — Client-ID noch nicht eingerichtet -->
+        <div id="gcal-wizard-row" style="display:none;">
+          <div class="gcal-wizard-body">
+            <a href="https://console.cloud.google.com" target="_blank" rel="noopener noreferrer"
+               class="btn btn-secondary btn-sm gcal-console-link">
+              Google Cloud Console öffnen ↗
+            </a>
+            <details class="gcal-setup-details">
+              <summary class="gcal-setup-summary">Schritt-für-Schritt Anleitung</summary>
+              <ol class="gcal-setup-steps">
+                <li>Oben links <strong>Projektauswahl</strong> → <strong>Neues Projekt</strong> → Name: <em>LehrerPlaner</em></li>
+                <li><strong>APIs &amp; Dienste</strong> → <strong>Bibliothek</strong> → „Google Calendar API" → <strong>Aktivieren</strong></li>
+                <li><strong>APIs &amp; Dienste</strong> → <strong>Anmeldedaten</strong> → <strong>Anmeldedaten erstellen</strong> → <strong>OAuth-Client-ID</strong></li>
+                <li>Anwendungstyp: <strong>Webanwendung</strong></li>
+                <li>
+                  Unter <strong>Autorisierte JavaScript-Quellen</strong> diese URL eintragen:
+                  <div class="gcal-origin-row">
+                    <code class="gcal-origin-code" id="gcal-origin-display">—</code>
+                    <button class="btn btn-ghost btn-sm gcal-copy-btn" id="gcal-copy-origin"
+                            title="URL kopieren" type="button">📋</button>
+                  </div>
+                </li>
+                <li><strong>Erstellen</strong> → die angezeigte <strong>Client-ID</strong> kopieren</li>
+              </ol>
+            </details>
+            <div class="gcal-client-id-wrap">
+              <label class="form-label" for="gcal-client-id-input">Client-ID eintragen</label>
+              <div class="gcal-client-id-row">
+                <input type="text" class="form-input" id="gcal-client-id-input"
+                       placeholder="123456789-abc.apps.googleusercontent.com"
+                       autocomplete="off" spellcheck="false">
+                <button class="btn btn-primary" id="btn-gcal-save-connect"
+                        type="button">Speichern &amp; verbinden</button>
+              </div>
+              <div class="gcal-field-error" id="gcal-client-id-error" style="display:none;"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Zustand 2: Client-ID gesetzt, aber nicht verbunden -->
+        <div class="settings-row" id="gcal-connect-row" style="display:none;">
           <div>
             <div class="settings-row-label">Google Kalender verbinden</div>
             <div class="settings-row-sub" id="gcal-status-text">Nicht verbunden</div>
           </div>
           <button class="btn btn-primary" id="btn-gcal-connect">Mit Google verbinden</button>
         </div>
-        <!-- Sync row (connected) -->
+
+        <!-- Zustand 3a: Verbunden — Sync -->
         <div class="settings-row" id="gcal-synced-row" style="display:none;">
           <div>
             <div class="settings-row-label">Jetzt synchronisieren</div>
@@ -310,7 +351,8 @@
           </div>
           <button class="btn btn-primary" id="btn-gcal-sync">Sync</button>
         </div>
-        <!-- Disconnect row (connected) -->
+
+        <!-- Zustand 3b: Verbunden — Trennen -->
         <div class="settings-row" id="gcal-disconnect-row" style="display:none;">
           <div>
             <div class="settings-row-label">Verbindung trennen</div>
@@ -318,6 +360,8 @@
           </div>
           <button class="btn btn-secondary btn-sm" id="btn-gcal-disconnect">Trennen</button>
         </div>
+
+        <!-- Datenschutz-Hinweis (immer sichtbar) -->
         <div class="settings-row">
           <div class="settings-row-sub" style="font-size:11px;color:var(--text-muted);line-height:1.5;">
             Synchronisiert werden: Termine, Schultermine, Konferenzen, Klassenarbeiten.<br>

@@ -276,6 +276,46 @@ async function launchApp() {
         if (btn) { btn.textContent = 'Mit Google verbinden'; btn.disabled = false; }
       }
     });
+    // Wizard: Client-ID speichern + sofort verbinden
+    el('btn-gcal-save-connect')?.addEventListener('click', async () => {
+      const input  = el('gcal-client-id-input');
+      const errEl  = el('gcal-client-id-error');
+      const btn    = el('btn-gcal-save-connect');
+      const id     = input?.value.trim() || '';
+      if (errEl) errEl.style.display = 'none';
+      if (!id.endsWith('.apps.googleusercontent.com')) {
+        if (errEl) { errEl.textContent = 'Ungültige Client-ID (muss auf .apps.googleusercontent.com enden)'; errEl.style.display = 'block'; }
+        return;
+      }
+      if (btn) { btn.textContent = 'Speichere…'; btn.disabled = true; }
+      try {
+        await GCal.saveClientId(id);
+        await GCal.connect();
+        showToast('Google Kalender verbunden ✓', 'success');
+      } catch(e) {
+        showToast('Fehler: ' + e.message, 'error');
+        if (errEl) { errEl.textContent = e.message; errEl.style.display = 'block'; }
+        // If connect failed, revert to wizard so user can try again
+        await GCal.updateSettingsUI();
+      } finally {
+        if (btn) { btn.textContent = 'Speichern & verbinden'; btn.disabled = false; }
+      }
+    });
+    // Wizard: origin URL kopieren
+    el('gcal-copy-origin')?.addEventListener('click', () => {
+      const origin = window.location.origin;
+      if (navigator.clipboard) {
+        navigator.clipboard.writeText(origin).then(() => showToast('URL kopiert ✓', 'success'));
+      } else {
+        const codeEl = el('gcal-origin-display');
+        if (codeEl) {
+          const range = document.createRange();
+          range.selectNode(codeEl);
+          window.getSelection()?.removeAllRanges();
+          window.getSelection()?.addRange(range);
+        }
+      }
+    });
     el('btn-gcal-sync')?.addEventListener('click', () => _gcalSync());
     el('cal-gcal-sync')?.addEventListener('click', () => _gcalSync());
     el('btn-gcal-disconnect')?.addEventListener('click', async () => {

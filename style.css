@@ -1716,6 +1716,80 @@ svg { display: block; }
 /* GOOGLE CALENDAR SYNC                                       */
 /* ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ─── */
 
+/* Google Calendar setup wizard */
+.gcal-wizard-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px 0 8px;
+}
+.gcal-console-link {
+  align-self: flex-start;
+  text-decoration: none;
+}
+.gcal-setup-details {
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.gcal-setup-summary {
+  padding: 10px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-1);
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.gcal-setup-summary::before { content: '▶'; font-size: 10px; transition: transform 0.15s; }
+details[open] .gcal-setup-summary::before { transform: rotate(90deg); }
+.gcal-setup-steps {
+  margin: 0;
+  padding: 0 14px 12px 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+.gcal-origin-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.gcal-origin-code {
+  background: var(--hover-bg);
+  border: 1px solid var(--border-light);
+  border-radius: 4px;
+  padding: 3px 8px;
+  font-size: 12px;
+  font-family: monospace;
+  word-break: break-all;
+  color: var(--primary);
+}
+.gcal-copy-btn { padding: 2px 6px; font-size: 13px; }
+.gcal-client-id-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.gcal-client-id-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.gcal-client-id-row .form-input { flex: 1; min-width: 0; font-size: 12px; }
+.gcal-field-error {
+  font-size: 12px;
+  color: var(--danger);
+  padding: 4px 2px;
+}
+
 /* Sync button in calendar toolbar */
 .gcal-sync-btn {
   display: inline-flex;

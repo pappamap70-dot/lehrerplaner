@@ -24,6 +24,15 @@ const GCal = (() => {
   function _rangeStart() { const d = new Date(); d.setDate(d.getDate() - PAST_DAYS); return d; }
   function _rangeEnd()   { const d = new Date(); d.setDate(d.getDate() + FUTURE_DAYS); return d; }
 
+  // ── Client-ID (DB hat Vorrang vor config.js) ────────────────
+  async function _getClientId() {
+    const fromDb = await DB.getSetting('gcalClientId');
+    if (fromDb && fromDb.trim() && !fromDb.includes('YOUR_GOOGLE')) return fromDb.trim();
+    const fromConfig = CONFIG?.GOOGLE_CLIENT_ID;
+    if (fromConfig && !fromConfig.includes('YOUR_GOOGLE')) return fromConfig;
+    return null;
+  }
+
   // ── Token-Verwaltung (IndexedDB settings) ────────────────────
   async function _getToken() {
     try {
@@ -242,47 +251,45 @@ const GCal = (() => {
     return { pulled };
   }
 
-  // ── Settings-UI aktualisieren ────────────────────────────────
+  // ── Settings-UI aktualisieren (3 Zustände) ──────────────────
   async function _updateSettingsUI() {
+    const clientId  = await _getClientId();
     const connected = !!(await _getToken());
     const lastSync  = await DB.getSetting('gcalLastSync');
-    const configOk  = CONFIG?.GOOGLE_CLIENT_ID &&
-                      !CONFIG.GOOGLE_CLIENT_ID.includes('YOUR_GOOGLE');
 
+    const wizardRow     = document.getElementById('gcal-wizard-row');
     const rowConnect    = document.getElementById('gcal-connect-row');
     const rowSynced     = document.getElementById('gcal-synced-row');
     const rowDisconnect = document.getElementById('gcal-disconnect-row');
-    const statusText    = document.getElementById('gcal-status-text');
     const lastSyncEl    = document.getElementById('gcal-last-sync-text');
-    const btnConnect    = document.getElementById('btn-gcal-connect');
     const calSyncBtn    = document.getElementById('cal-gcal-sync');
 
-    if (!rowConnect) return; // settings panel not in DOM yet
+    if (!wizardRow) return; // settings panel noch nicht im DOM
 
-    if (!configOk) {
-      if (statusText) statusText.textContent =
-        'Client-ID nicht konfiguriert — bitte config.js bearbeiten';
-      if (btnConnect) btnConnect.disabled = true;
-      return;
-    }
+    // Herkunft dynamisch setzen (nie hardcodiert)
+    const originEl = document.getElementById('gcal-origin-display');
+    if (originEl) originEl.textContent = window.location.origin;
 
-    if (connected) {
-      if (statusText)    statusText.textContent = 'Verbunden ✓';
-      if (rowConnect)    rowConnect.style.display = 'none';
-      if (rowSynced)     rowSynced.style.display = '';
-      if (rowDisconnect) rowDisconnect.style.display = '';
+    function show(el) { if (el) el.style.display = ''; }
+    function hide(el) { if (el) el.style.display = 'none'; }
+
+    if (!clientId) {
+      // Zustand 1: kein Client-ID → Wizard anzeigen
+      show(wizardRow); hide(rowConnect); hide(rowSynced); hide(rowDisconnect);
+      if (calSyncBtn) calSyncBtn.classList.add('hidden');
+    } else if (!connected) {
+      // Zustand 2: Client-ID vorhanden, aber nicht verbunden
+      hide(wizardRow); show(rowConnect); hide(rowSynced); hide(rowDisconnect);
+      if (calSyncBtn) calSyncBtn.classList.add('hidden');
+    } else {
+      // Zustand 3: verbunden
+      hide(wizardRow); hide(rowConnect); show(rowSynced); show(rowDisconnect);
       if (lastSyncEl) {
         lastSyncEl.textContent = lastSync
           ? 'Letzter Sync: ' + new Date(lastSync).toLocaleString('de-DE')
           : 'Noch nie synchronisiert';
       }
       if (calSyncBtn) calSyncBtn.classList.remove('hidden');
-    } else {
-      if (statusText)    statusText.textContent = 'Nicht verbunden';
-      if (rowConnect)    rowConnect.style.display = '';
-      if (rowSynced)     rowSynced.style.display = 'none';
-      if (rowDisconnect) rowDisconnect.style.display = 'none';
-      if (calSyncBtn)    calSyncBtn.classList.add('hidden');
     }
   }
 
@@ -311,14 +318,13 @@ const GCal = (() => {
     // OAuth-Flow starten
     async connect() {
       if (!navigator.onLine) throw new Error('Kein Internet');
-      if (!CONFIG?.GOOGLE_CLIENT_ID || CONFIG.GOOGLE_CLIENT_ID.includes('YOUR_GOOGLE')) {
-        throw new Error('Google Client ID nicht konfiguriert — bitte config.js anpassen');
-      }
+      const clientId = await _getClientId();
+      if (!clientId) throw new Error('Google Client ID nicht konfiguriert');
       await _loadGis();
 
       return new Promise((resolve, reject) => {
         const client = window.google.accounts.oauth2.initTokenClient({
-          client_id: CONFIG.GOOGLE_CLIENT_ID,
+          client_id: clientId,
           scope: SCOPE,
           callback: async (tr) => {
             if (tr.error) {
@@ -362,6 +368,20 @@ const GCal = (() => {
       await _updateSettingsUI();
 
       return { pushed, pulled, errors };
+    },
+
+    // Client-ID in IndexedDB speichern (überdauert App-Updates)
+    async saveClientId(id) {
+      await DB.setSetting('gcalClientId', id.trim());
+      await _updateSettingsUI();
+    },
+
+    // Client-ID zurücksetzen (zurück zum Wizard)
+    async resetClientId() {
+      await DB.setSetting('gcalClientId', null);
+      await _clearToken();
+      await DB.setSetting('gcalLastSync', null);
+      await _updateSettingsUI();
     },
   };
 })();
