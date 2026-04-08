@@ -2138,7 +2138,7 @@ async function exportData() {
     const data      = await DB.exportAll();
     const json      = JSON.stringify(data);
     const encrypted = await _bkEncrypt(pw, json);
-    const blob = new Blob([encrypted], { type: 'application/json' });
+    const blob = new Blob([encrypted], { type: 'application/octet-stream' });
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     const date = new Date().toISOString().slice(0, 10);
@@ -2176,7 +2176,14 @@ async function importData(e) {
     const text = await file.text();
     let data;
 
-    if (file.name.endsWith('.lpe')) {
+    // Detect format by content, not just extension.
+    // LPE files contain {"v":1,"t":"LehrerPlanerExport",...}
+    const isLpe = (() => {
+      try { const p = JSON.parse(text); return p.v === 1 && p.t === 'LehrerPlanerExport'; }
+      catch(_) { return false; }
+    })();
+
+    if (isLpe) {
       const pw = await _promptBackupImportPw();
       if (pw === null) return;
       try {
@@ -2186,8 +2193,9 @@ async function importData(e) {
         return;
       }
     } else {
-      // Legacy plain JSON backup
+      // Legacy plain JSON backup — warn the user
       data = JSON.parse(text);
+      showToast('Legacy Backup ohne Verschlüsselung wird importiert', 'warning');
     }
 
     await DB.importAll(data);
