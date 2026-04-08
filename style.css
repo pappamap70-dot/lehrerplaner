@@ -1713,6 +1713,55 @@ svg { display: block; }
 .sp-print-footer { display: none; font-size: 11px; color: var(--text-muted); margin-top: 32px; padding-top: 12px; border-top: 1px solid var(--border-light); }
 
 /* ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ─── */
+/* GOOGLE CALENDAR SYNC                                       */
+/* ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ─── */
+
+/* Sync button in calendar toolbar */
+.gcal-sync-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px 6px;
+  border-radius: var(--radius);
+  transition: background 0.15s, transform 0.15s;
+}
+.gcal-sync-btn:hover { background: var(--hover-bg); }
+.gcal-sync-btn.hidden { display: none !important; }
+
+/* Spin animation when syncing */
+.gcal-sync-btn.gcal-syncing .gcal-icon {
+  animation: gcal-spin 1s linear infinite;
+}
+@keyframes gcal-spin {
+  to { transform: rotate(360deg); }
+}
+
+.gcal-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+  flex-shrink: 0;
+}
+
+/* Google badge on event chips */
+.gcal-chip-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.35);
+  color: #fff;
+  font-size: 8px;
+  font-weight: 700;
+  line-height: 1;
+  margin-right: 3px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+/* ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ─── */
 /* PIN SCREEN                                                 */
 /* ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ─── */
 .pin-screen {

@@ -259,6 +259,30 @@ async function launchApp() {
     showToast('PIN erfolgreich geändert ✓', 'success');
   });
 
+  // Google Calendar
+  GCal.init();
+  el('btn-gcal-connect').addEventListener('click', async () => {
+    el('btn-gcal-connect').textContent = 'Verbinde…';
+    el('btn-gcal-connect').disabled = true;
+    try {
+      await GCal.connect();
+      showToast('Google Kalender verbunden ✓', 'success');
+    } catch(e) {
+      showToast('Fehler: ' + e.message, 'error');
+      el('btn-gcal-connect').textContent = 'Mit Google verbinden';
+      el('btn-gcal-connect').disabled = false;
+    }
+  });
+  el('btn-gcal-sync').addEventListener('click', () => _gcalSync());
+  el('cal-gcal-sync').addEventListener('click', () => _gcalSync());
+  el('btn-gcal-disconnect').addEventListener('click', async () => {
+    const ok = await confirm2('Google Kalender trennen?',
+      'Die Verbindung wird getrennt. Bereits importierte Google-Termine bleiben erhalten.');
+    if (!ok) return;
+    await GCal.disconnect();
+    showToast('Google Kalender getrennt', '');
+  });
+
   // Event modal
   el('ev-cancel').addEventListener('click', closeEventModal);
   el('event-modal-close').addEventListener('click', closeEventModal);
@@ -674,10 +698,13 @@ App._dayClick = function(dateStr) {
 
 function chipHtml(ev) {
   const color = ev.color || typeColor(ev.type);
-  const time = ev.timeStart ? `<span class="event-chip-time">${ev.timeStart}</span> ` : '';
+  const time  = ev.timeStart ? `<span class="event-chip-time">${ev.timeStart}</span> ` : '';
+  const gBadge = ev.source === 'google'
+    ? '<span class="gcal-chip-badge" title="Google Kalender">G</span>'
+    : '';
   return `<div class="event-chip type-${ev.type}" style="background:${color};"
     onclick="event.stopPropagation();App._editEvent(${ev.id})">
-    ${time}<span class="event-chip-text">${escHtml(ev.title)}</span>
+    ${gBadge}${time}<span class="event-chip-text">${escHtml(ev.title)}</span>
   </div>`;
 }
 
@@ -731,7 +758,8 @@ async function renderMonth() {
       <div class="month-event-chips">
         ${shown.map(ev => {
           const color = ev.color || typeColor(ev.type);
-          return `<div class="month-event-chip" style="background:${color};" onclick="event.stopPropagation();App._editEvent(${ev.id})">${escHtml(ev.title)}</div>`;
+          const gBadge = ev.source === 'google' ? '<span class="gcal-chip-badge">G</span>' : '';
+          return `<div class="month-event-chip" style="background:${color};" onclick="event.stopPropagation();App._editEvent(${ev.id})">${gBadge}${escHtml(ev.title)}</div>`;
         }).join('')}
         ${more>0 ? `<div class="month-event-more">+${more} weitere</div>` : ''}
       </div>
@@ -2008,6 +2036,7 @@ function openSettings() {
     el('settings-storage').textContent = 'Nicht verfügbar';
   }
 
+  GCal.updateSettingsUI();
   el('settings-panel').classList.remove('hidden');
 }
 
@@ -2027,6 +2056,29 @@ async function saveSettings() {
 
 // ══════════════════════════════════════════════════════════════
 // BACKUP CRYPTO (AES-256-GCM + PBKDF2, password not stored)
+// ══════════════════════════════════════════════════════════════
+// GOOGLE CALENDAR SYNC HELPER
+// ══════════════════════════════════════════════════════════════
+async function _gcalSync() {
+  if (!navigator.onLine) { showToast('Kein Internet', 'error'); return; }
+  const btn = el('btn-gcal-sync');
+  const calBtn = el('cal-gcal-sync');
+  const origText = btn ? btn.textContent : '';
+  if (btn) { btn.textContent = '…'; btn.disabled = true; }
+  if (calBtn) calBtn.classList.add('gcal-syncing');
+  try {
+    const { pushed, pulled } = await GCal.sync();
+    showToast(`Sync ✓ — ${pushed} hochgeladen, ${pulled} importiert`, 'success');
+    if (App.currentView === 'kalender') await renderCalendar();
+    if (App.currentView === 'dashboard') await renderDashboard();
+  } catch(e) {
+    showToast('Sync-Fehler: ' + e.message, 'error');
+  } finally {
+    if (btn) { btn.textContent = origText || 'Sync'; btn.disabled = false; }
+    if (calBtn) calBtn.classList.remove('gcal-syncing');
+  }
+}
+
 // ══════════════════════════════════════════════════════════════
 function _bkHexToBytes(hex) {
   const a = new Uint8Array(hex.length / 2);
