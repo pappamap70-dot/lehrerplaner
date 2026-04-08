@@ -1,5 +1,5 @@
 // sw.js — LehrerPlaner Service Worker (cache-first, full offline)
-const CACHE = 'lehrerplaner-v13';
+const CACHE = 'lehrerplaner-v14';
 const BASE  = '/';
 
 // All local app files — must be cached for full offline support
@@ -93,7 +93,8 @@ self.addEventListener('fetch', e => {
 
 // Status ping from app
 self.addEventListener('message', e => {
-  if (e.data === 'ping') {
-    e.source.postMessage({ type: 'pong', cache: CACHE });
+  if (e.data === 'ping' && e.source) {
+    try { e.source.postMessage({ type: 'pong', cache: CACHE }); }
+    catch (_) { /* client gone — ignore */ }
   }
 });
