@@ -2,7 +2,7 @@
 'use strict';
 
 const DB_NAME = 'lehrerplaner-db';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 let _db = null;
 
 async function getDB() {
@@ -43,6 +43,12 @@ async function getDB() {
       if (!db.objectStoreNames.contains('vertretung')) {
         const vt = db.createObjectStore('vertretung', { keyPath: 'id', autoIncrement: true });
         vt.createIndex('date', 'date');
+      }
+      // ── Version 3 stores — Fächer ────────────────────────
+      if (oldVersion < 3) {
+        if (!db.objectStoreNames.contains('subjects')) {
+          db.createObjectStore('subjects', { keyPath: 'id', autoIncrement: true });
+        }
       }
       // ── Version 2 stores — Schülerverwaltung ─────────────
       if (oldVersion < 2) {
@@ -172,6 +178,18 @@ const DB = {
   },
   async deleteVertretung(id) { return (await getDB()).delete('vertretung', id); },
 
+  // ── SUBJECTS ────────────────────────────────────────────
+  async getSubjects() {
+    const all = await (await getDB()).getAll('subjects');
+    return all.sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || a.name.localeCompare(b.name, 'de'));
+  },
+  async saveSubject(s) {
+    const db = await getDB();
+    if (s.id) { await db.put('subjects', s); return s.id; }
+    return db.add('subjects', s);
+  },
+  async deleteSubject(id) { return (await getDB()).delete('subjects', id); },
+
   // ── STUDENTS ────────────────────────────────────────────
   async getStudentsByClass(classId) {
     const all = await (await getDB()).getAll('students');
@@ -184,6 +202,7 @@ const DB = {
     return db.add('students', s);
   },
   async getAllStudents() { return (await getDB()).getAll('students'); },
+  async deleteStudent(id) { return (await getDB()).delete('students', id); },
 
   // ── GRADES ──────────────────────────────────────────────
   async getGradesByStudent(studentId) {
@@ -216,6 +235,7 @@ const DB = {
     if (a.id) { await db.put('attendance', a); return a.id; }
     return db.add('attendance', a);
   },
+  async deleteAttendanceById(id) { return (await getDB()).delete('attendance', id); },
   async deleteAttendancesForClassAndDate(classId, datum) {
     const all = await (await getDB()).getAll('attendance');
     const db = await getDB();
@@ -261,6 +281,7 @@ const DB = {
       _exported: new Date().toISOString(),
       events:        await db.getAll('events'),
       classes:       await db.getAll('classes'),
+      subjects:      await db.getAll('subjects'),
       settings:      await db.getAll('settings'),
       notes:         await db.getAll('notes'),
       todos:         await db.getAll('todos'),
@@ -279,7 +300,7 @@ const DB = {
   async importAll(data) {
     const db = await getDB();
     const stores = [
-      'events','classes','settings','notes','todos','contacts','links',
+      'events','classes','subjects','settings','notes','todos','contacts','links',
       'stundenplaene','vertretung',
       'students','grades','attendance','remarks','seatingPlan','homeworkMissed',
     ];

@@ -101,7 +101,7 @@ async function renderSchuelerTab(act) {
 
   const c = el('kd-content');
 
-  const importBtn = `<button class="btn btn-secondary btn-sm" onclick="openASVImport()">↑ Aus ASV importieren</button>`;
+  const importBtn = `<button class="btn btn-secondary btn-sm" onclick="openASVImport()">↑ Importieren</button>`;
 
   if (!students.length) {
     c.innerHTML = `<div class="kd-toolbar">${importBtn}</div>
@@ -121,7 +121,7 @@ async function renderSchuelerTab(act) {
     const initials = (s.vorname[0] || '') + (s.nachname[0] || '');
     const gClass = s.geschlecht === 'w' ? 'w' : s.geschlecht === 'd' ? 'd' : '';
     const inactiveRow = s.aktiv === false ? ' inactive' : '';
-    html += `<div class="student-row${inactiveRow}">
+    html += `<div class="student-row${inactiveRow}" onclick="openStudentProfile(${s.id})" style="cursor:pointer;">
       <div class="student-avatar ${gClass}">${escHtml(initials.toUpperCase())}</div>
       <div class="student-name">
         ${escHtml(s.nachname)}, <span class="vorname">${escHtml(s.vorname)}</span>
@@ -131,8 +131,8 @@ async function renderSchuelerTab(act) {
         ${s.geburtsdatum ? `<span class="text-muted text-sm">${formatDateDE(s.geburtsdatum)}</span>` : ''}
       </div>
       <div class="student-actions">
-        <button class="btn btn-ghost btn-sm btn-icon" onclick="openStudentModal(${s.id})" title="Bearbeiten">✎</button>
-        <button class="btn btn-ghost btn-sm btn-icon" onclick="openRemarkForStudent(${s.id})" title="Bemerkung">💬</button>
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="event.stopPropagation();openStudentModal(${s.id})" title="Bearbeiten">✎</button>
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="event.stopPropagation();openRemarkForStudent(${s.id})" title="Bemerkung">💬</button>
       </div>
     </div>`;
   }
@@ -364,10 +364,8 @@ window.openGradeModal = async function(gradeId, preStudentId, preFach) {
     `<option value="${s.id}">${escHtml(s.nachname)}, ${escHtml(s.vorname)}</option>`
   ).join('');
 
-  // Populate fach datalist
-  const allGrades = await DB.getGradesByClass(S.classId);
-  const subjects = [...new Set(allGrades.map(g => g.fach).filter(Boolean))].sort();
-  el('g-fach-list').innerHTML = subjects.map(f => `<option value="${escHtml(f)}">`).join('');
+  // Populate fach select from global subjects
+  await populateSubjectSelect(el('g-fach'), preFach || null);
 
   el('grade-modal-title').textContent = gradeId ? 'Note bearbeiten' : 'Note eintragen';
   el('g-datum').value       = isoDate(new Date());
@@ -375,7 +373,6 @@ window.openGradeModal = async function(gradeId, preStudentId, preFach) {
   el('g-typ').value         = 'muendlich';
   el('g-gewichtung').value  = '1';
   el('g-kommentar').value   = '';
-  el('g-fach').value        = preFach || '';
   el('g-delete').style.display = 'none';
 
   if (preStudentId) sel.value = preStudentId;
@@ -385,7 +382,7 @@ window.openGradeModal = async function(gradeId, preStudentId, preFach) {
     const g = await DB.getGrade(gradeId);
     if (g) {
       sel.value             = g.studentId;
-      el('g-fach').value    = g.fach || '';
+      await populateSubjectSelect(el('g-fach'), g.fach || null);
       el('g-note').value    = g.note;
       el('g-typ').value     = g.typ         || 'muendlich';
       el('g-gewichtung').value = g.gewichtung || 1;
@@ -406,9 +403,9 @@ window.openGradeModal = async function(gradeId, preStudentId, preFach) {
 
 async function saveGrade() {
   const studentId = Number(el('g-student').value);
-  const fach      = el('g-fach').value.trim();
+  const fach      = el('g-fach').value;
   const note      = parseFloat(el('g-note').value);
-  if (!fach)              { showToast('Fach eingeben', 'error'); return; }
+  if (!fach)              { showToast('Fach wählen', 'error'); return; }
   if (isNaN(note) || note < 1 || note > 6) { showToast('Note muss zwischen 1 und 6 liegen', 'error'); return; }
 
   const g = {
@@ -442,12 +439,15 @@ function closeGradeModal() { el('grade-modal').classList.add('hidden'); }
 // ══════════════════════════════════════════════════════════════
 // ANWESENHEIT TAB
 // ══════════════════════════════════════════════════════════════
-const ATT_CYCLE  = ['anwesend', 'fehlt', 'entschuldigt', 'spaet'];
-const ATT_LABEL  = { anwesend:'✓ Anwesend', fehlt:'✗ Fehlt', entschuldigt:'⚡ Entschuldigt', spaet:'⏱ Verspätet' };
-const ATT_CLASS  = { anwesend:'att-anwesend', fehlt:'att-fehlt', entschuldigt:'att-entschuldigt', spaet:'att-spaet' };
+const ATT_CYCLE  = ['anwesend', 'fehlt', 'spaet'];
+const ATT_LABEL  = { anwesend:'✓ Anwesend', fehlt:'✗ Fehlt', spaet:'⏱ Verspätet' };
+const ATT_CLASS  = { anwesend:'att-anwesend', fehlt:'att-fehlt', spaet:'att-spaet' };
 
-// In-memory map for current day: studentId → status
+// In-memory maps for current day:
+//   _attMap[studentId] = { status, entschuldigt, grund }
+//   _attIds[studentId] = DB record id (null if anwesend/not stored)
 let _attMap = {};
+let _attIds = {};
 
 async function renderAnwesenheitTab(act) {
   act.style.display = 'none';
@@ -464,10 +464,14 @@ async function renderAnwesenheitTab(act) {
     return;
   }
 
-  // Daily view
+  // Daily view — load existing records into memory maps
   const recs = await DB.getAttendanceByClassAndDate(S.classId, S.attDate);
   _attMap = {};
-  recs.forEach(r => { _attMap[r.studentId] = r.status; });
+  _attIds = {};
+  recs.forEach(r => {
+    _attMap[r.studentId] = { status: r.status, entschuldigt: r.entschuldigt || false, grund: r.grund || '' };
+    _attIds[r.studentId] = r.id;
+  });
 
   let html = `<div class="kd-toolbar" style="flex-wrap:nowrap;">
     <label style="font-size:13px;font-weight:500;">Datum:</label>
@@ -483,12 +487,11 @@ async function renderAnwesenheitTab(act) {
 
   html += '<div id="att-list">';
   for (const s of students) {
-    const status = _attMap[s.id] || 'anwesend';
-    html += attRowHtml(s, status);
+    const rec = _attMap[s.id] || { status: 'anwesend', entschuldigt: false, grund: '' };
+    html += attRowHtml(s, rec);
   }
   html += '</div>';
-  html += `<div style="margin-top:16px;display:flex;gap:8px;">
-    <button class="btn btn-primary btn-sm" onclick="saveAttendance()">Speichern</button>
+  html += `<div style="margin-top:16px;">
     <button class="btn btn-secondary btn-sm" onclick="setAllAttendance('anwesend')">Alle anwesend</button>
   </div>`;
   c.innerHTML = html;
@@ -499,48 +502,112 @@ async function renderAnwesenheitTab(act) {
   });
 }
 
-function attRowHtml(s, status) {
+function attRowHtml(s, rec) {
+  const status = rec.status || 'anwesend';
+  const entsch = rec.entschuldigt || false;
+  const grund  = escHtml(rec.grund || '');
+  const showEntsch = status === 'fehlt';
+  const showGrund  = status !== 'anwesend';
   return `<div class="att-row" id="att-row-${s.id}">
     <div class="att-name">${escHtml(s.nachname)}, ${escHtml(s.vorname)}</div>
-    <button class="att-status-btn ${ATT_CLASS[status]}" data-sid="${s.id}" onclick="cycleAttStatus(${s.id},this)">
-      ${ATT_LABEL[status]}
-    </button>
+    <div class="att-controls">
+      <button class="att-status-btn ${ATT_CLASS[status]}" data-sid="${s.id}" onclick="cycleAttStatus(${s.id},this)">
+        ${ATT_LABEL[status]}
+      </button>
+      <label class="att-entsch-toggle${showEntsch ? '' : ' hidden'}" id="att-entsch-lbl-${s.id}">
+        <input type="checkbox" id="att-entsch-${s.id}" ${entsch ? 'checked' : ''}
+          onchange="toggleAttEntschuldigt(${s.id},this.checked)">
+        entschuldigt
+      </label>
+      <input type="text" class="att-grund-input${showGrund ? '' : ' hidden'}" id="att-grund-${s.id}"
+        placeholder="Grund…" value="${grund}"
+        oninput="scheduleAttGrundSave(${s.id},this.value)">
+    </div>
   </div>`;
 }
 
-window.cycleAttStatus = function(studentId, btn) {
-  const cur = _attMap[studentId] || 'anwesend';
+window.cycleAttStatus = async function(studentId, btn) {
+  const cur  = (_attMap[studentId] || {}).status || 'anwesend';
   const idx  = ATT_CYCLE.indexOf(cur);
   const next = ATT_CYCLE[(idx + 1) % ATT_CYCLE.length];
-  _attMap[studentId] = next;
-  btn.textContent  = ATT_LABEL[next];
-  btn.className    = `att-status-btn ${ATT_CLASS[next]}`;
+  if (!_attMap[studentId]) _attMap[studentId] = { status: 'anwesend', entschuldigt: false, grund: '' };
+  _attMap[studentId].status = next;
+  btn.textContent = ATT_LABEL[next];
+  btn.className   = `att-status-btn ${ATT_CLASS[next]}`;
+
+  // Show/hide entschuldigt + grund controls
+  const entschLbl = document.getElementById(`att-entsch-lbl-${studentId}`);
+  const grundInp  = document.getElementById(`att-grund-${studentId}`);
+  if (entschLbl) entschLbl.classList.toggle('hidden', next !== 'fehlt');
+  if (grundInp)  grundInp.classList.toggle('hidden', next === 'anwesend');
+
+  // Clear entschuldigt when no longer fehlt
+  if (next !== 'fehlt') {
+    _attMap[studentId].entschuldigt = false;
+    const cb = document.getElementById(`att-entsch-${studentId}`);
+    if (cb) cb.checked = false;
+  }
+
+  await saveOneAttendance(studentId);
 };
 
-window.setAllAttendance = function(status) {
-  const students = el('att-list').querySelectorAll('[data-sid]');
-  students.forEach(btn => {
+window.toggleAttEntschuldigt = async function(studentId, checked) {
+  if (!_attMap[studentId]) _attMap[studentId] = { status: 'fehlt', entschuldigt: false, grund: '' };
+  _attMap[studentId].entschuldigt = checked;
+  await saveOneAttendance(studentId);
+};
+
+const _attGrundTimers = {};
+window.scheduleAttGrundSave = function(studentId, value) {
+  if (!_attMap[studentId]) _attMap[studentId] = { status: 'anwesend', entschuldigt: false, grund: '' };
+  _attMap[studentId].grund = value;
+  clearTimeout(_attGrundTimers[studentId]);
+  _attGrundTimers[studentId] = setTimeout(() => saveOneAttendance(studentId), 600);
+};
+
+async function saveOneAttendance(studentId) {
+  const rec = _attMap[studentId] || { status: 'anwesend', entschuldigt: false, grund: '' };
+  if (rec.status === 'anwesend' && !rec.grund) {
+    // Delete record if present
+    if (_attIds[studentId]) {
+      await DB.deleteAttendanceById(_attIds[studentId]);
+      delete _attIds[studentId];
+    }
+    return;
+  }
+  const record = {
+    studentId:    studentId,
+    classId:      S.classId,
+    datum:        S.attDate,
+    status:       rec.status,
+    entschuldigt: rec.entschuldigt || false,
+    grund:        rec.grund || '',
+  };
+  if (_attIds[studentId]) {
+    record.id = _attIds[studentId];
+  }
+  const savedId = await DB.saveAttendance(record);
+  if (!_attIds[studentId]) _attIds[studentId] = savedId;
+}
+
+window.setAllAttendance = async function(status) {
+  const buttons = el('att-list').querySelectorAll('[data-sid]');
+  for (const btn of buttons) {
     const sid = Number(btn.dataset.sid);
-    _attMap[sid] = status;
+    if (!_attMap[sid]) _attMap[sid] = { status: 'anwesend', entschuldigt: false, grund: '' };
+    _attMap[sid].status = status;
+    _attMap[sid].entschuldigt = false;
     btn.textContent = ATT_LABEL[status];
     btn.className   = `att-status-btn ${ATT_CLASS[status]}`;
-  });
-};
-
-window.saveAttendance = async function() {
-  // Delete existing records for this class+date, then save deviations
-  await DB.deleteAttendancesForClassAndDate(S.classId, S.attDate);
-  for (const [sid, status] of Object.entries(_attMap)) {
-    if (status !== 'anwesend') {
-      await DB.saveAttendance({
-        studentId: Number(sid),
-        classId:   S.classId,
-        datum:     S.attDate,
-        status,
-      });
-    }
+    const entschLbl = document.getElementById(`att-entsch-lbl-${sid}`);
+    const grundInp  = document.getElementById(`att-grund-${sid}`);
+    const cb        = document.getElementById(`att-entsch-${sid}`);
+    if (entschLbl) entschLbl.classList.add('hidden');
+    if (grundInp)  grundInp.classList.add('hidden');
+    if (cb) cb.checked = false;
+    await saveOneAttendance(sid);
   }
-  showToast('Anwesenheit gespeichert ✓', 'success');
+  showToast('Alle anwesend ✓', 'success');
 };
 
 async function renderAttMonthly(c, students, viewToggle) {
@@ -560,8 +627,8 @@ async function renderAttMonthly(c, students, viewToggle) {
 
   for (const s of students) {
     const sr    = recs.filter(r => r.studentId === s.id);
-    const fehlt = sr.filter(r => r.status === 'fehlt' || r.status === 'entschuldigt').length;
-    const entsch= sr.filter(r => r.status === 'entschuldigt').length;
+    const fehlt = sr.filter(r => r.status === 'fehlt').length;
+    const entsch= sr.filter(r => r.status === 'fehlt' && r.entschuldigt).length;
     const spaet = sr.filter(r => r.status === 'spaet').length;
     html += `<tr>
       <td>${escHtml(s.nachname)}, ${escHtml(s.vorname)}</td>
@@ -1015,6 +1082,197 @@ window.toggleHW = async function(studentId, btn) {
     btn.textContent = '✗';
   }
 };
+
+// ══════════════════════════════════════════════════════════════
+// SCHÜLERAKTE (STUDENT PROFILE)
+// ══════════════════════════════════════════════════════════════
+let _profileStudentId = null;
+
+window.openStudentProfile = async function(studentId) {
+  _profileStudentId = studentId;
+  await renderStudentProfile(studentId);
+  el('student-profile-modal').classList.remove('hidden');
+};
+
+window.printStudentProfile = function() {
+  window.print();
+};
+
+window.openSubjectsModal = async function() {
+  await renderSubjectsModalList();
+  el('subjects-modal').classList.remove('hidden');
+};
+
+async function renderStudentProfile(studentId) {
+  const student = await DB.getStudent(studentId);
+  if (!student) return;
+  const cls = await DB.getClass(student.classId);
+  const allGrades = await DB.getGradesByStudent(studentId);
+  const allRemarks = await DB.getRemarksByStudent(studentId);
+  const allAtt = await DB.getAttendanceByStudent(studentId);
+  const allHW = (await DB.getHomeworkByClass(student.classId)).filter(h => h.studentId === studentId);
+
+  allGrades.sort((a, b) => (a.datum || '').localeCompare(b.datum || ''));
+  allRemarks.sort((a, b) => (b.datum || '').localeCompare(a.datum || ''));
+
+  // Age calculation
+  let ageStr = '';
+  if (student.geburtsdatum) {
+    const bday = new Date(student.geburtsdatum);
+    const today = new Date();
+    let age = today.getFullYear() - bday.getFullYear();
+    if (today < new Date(today.getFullYear(), bday.getMonth(), bday.getDate())) age--;
+    ageStr = `${age} Jahre`;
+  }
+
+  const gLabel = { m: 'männlich', w: 'weiblich', d: 'divers' }[student.geschlecht] || '';
+  const schuljahr = App.settings.schoolYear || '';
+
+  // ── Grade summary ──
+  const subjects = [...new Set(allGrades.map(g => g.fach).filter(Boolean))].sort();
+  let gradeHtml = '';
+  let overallNotes = [];
+
+  for (const fach of subjects) {
+    const fg = allGrades.filter(g => g.fach === fach);
+    const avg = calcAvg(fg);
+    // Trend: compare last note to average
+    let trend = '';
+    if (fg.length >= 2) {
+      const last = fg[fg.length - 1].note;
+      if (avg !== null && last < avg - 0.2) trend = '<span class="trend-up">↑</span>';
+      else if (avg !== null && last > avg + 0.2) trend = '<span class="trend-down">↓</span>';
+    }
+    overallNotes.push(...fg);
+
+    gradeHtml += `<div class="sp-subject-block">
+      <div class="sp-subject-header">
+        <span class="sp-subject-name">${escHtml(fach)}</span>
+        ${avg !== null ? `<span class="sp-avg ${avgColor(avg)}">${avg.toFixed(2)} ${trend}</span>` : ''}
+      </div>
+      <div class="sp-grade-chips">
+        ${fg.map(g => `<span class="sp-grade-chip" style="background:${gradeColor(g.note)}20;border-color:${gradeColor(g.note)};" title="${g.datum ? formatDateDE(g.datum) : ''}${g.typ ? ' · ' + g.typ : ''}${g.kommentar ? ' · ' + g.kommentar : ''}">
+          <strong>${g.note}</strong>
+          <span class="sp-chip-meta">${g.typ === 'schriftlich' ? 'S' : g.typ === 'projekt' ? 'P' : 'M'}×${g.gewichtung||1}</span>
+        </span>`).join('')}
+      </div>
+    </div>`;
+  }
+
+  const overallAvg = calcAvg(overallNotes);
+
+  // ── Attendance summary ──
+  const fehlt = allAtt.filter(a => a.status === 'fehlt').length;
+  const entsch = allAtt.filter(a => a.status === 'fehlt' && a.entschuldigt).length;
+  const unentsch = fehlt - entsch;
+  const spaet = allAtt.filter(a => a.status === 'spaet').length;
+
+  // Monthly attendance dots (last 4 months)
+  const today = new Date();
+  let attDotsHtml = '';
+  for (let mOff = 3; mOff >= 0; mOff--) {
+    const d = new Date(today.getFullYear(), today.getMonth() - mOff, 1);
+    const ym = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    const monthRecs = allAtt.filter(a => (a.datum||'').startsWith(ym));
+    if (!monthRecs.length && mOff > 0) continue;
+    attDotsHtml += `<div class="sp-month-row">
+      <span class="sp-month-label">${MONTHS_S[d.getMonth()]} ${d.getFullYear()}</span>
+      <div class="sp-att-dots">
+        ${monthRecs.map(a => {
+          const cls2 = a.status === 'fehlt' ? (a.entschuldigt ? 'att-dot-entsch' : 'att-dot-fehlt') : 'att-dot-spaet';
+          const tip = `${formatDateDE(a.datum)} — ${a.status}${a.entschuldigt ? ' (entsch.)' : ''}${a.grund ? ': ' + a.grund : ''}`;
+          return `<span class="att-dot ${cls2}" title="${escHtml(tip)}"></span>`;
+        }).join('')}
+        ${!monthRecs.length ? '<span class="text-muted text-sm">Keine Einträge</span>' : ''}
+      </div>
+    </div>`;
+  }
+
+  // ── Remarks ──
+  const CAT_LABEL = { allgemein:'Allgemein', elternkontakt:'Elternkontakt', verhalten:'Verhalten', positiv:'Positiv' };
+  const remarksHtml = allRemarks.length
+    ? allRemarks.map(r => `<div class="sp-remark-item ${r.kategorie||'allgemein'}">
+        <div class="sp-remark-meta">
+          <span class="remark-cat ${r.kategorie||'allgemein'}">${CAT_LABEL[r.kategorie||'allgemein']||r.kategorie}</span>
+          <span class="text-muted text-sm">${formatDateDE(r.datum)}</span>
+        </div>
+        <div>${escHtml(r.text)}</div>
+      </div>`).join('')
+    : '<div class="text-muted text-sm" style="padding:8px 0;">Keine Bemerkungen.</div>';
+
+  // ── Homework ──
+  const hwByFach = {};
+  allHW.forEach(h => {
+    const f = h.fach || '—';
+    hwByFach[f] = (hwByFach[f] || 0) + 1;
+  });
+  const hwHtml = Object.keys(hwByFach).length
+    ? Object.entries(hwByFach).sort((a,b) => b[1]-a[1]).map(([f,n]) =>
+        `<div class="sp-hw-row"><span>${escHtml(f)}</span><span class="sp-hw-count">${n}×</span></div>`
+      ).join('')
+    : '<div class="text-muted text-sm" style="padding:8px 0;">Keine Einträge.</div>';
+
+  // ── Render ──
+  const body = el('sp-modal-body');
+  body.innerHTML = `
+    <div class="sp-printable" id="sp-printable">
+      <!-- HEADER -->
+      <div class="sp-header">
+        <div class="sp-avatar ${student.geschlecht === 'w' ? 'w' : student.geschlecht === 'd' ? 'd' : ''}">
+          ${escHtml(((student.vorname[0]||'') + (student.nachname[0]||'')).toUpperCase())}
+        </div>
+        <div class="sp-header-info">
+          <div class="sp-fullname">${escHtml(student.nachname)}, ${escHtml(student.vorname)}</div>
+          <div class="sp-meta-row">
+            <span>${escHtml(cls?.name || '')}</span>
+            ${gLabel ? `<span class="sp-sep">·</span><span>${escHtml(gLabel)}</span>` : ''}
+            ${student.geburtsdatum ? `<span class="sp-sep">·</span><span>${formatDateDE(student.geburtsdatum)}</span>` : ''}
+            ${ageStr ? `<span class="sp-sep">·</span><span>${ageStr}</span>` : ''}
+            ${schuljahr ? `<span class="sp-sep">·</span><span>SJ ${schuljahr}</span>` : ''}
+          </div>
+        </div>
+        ${overallAvg !== null ? `<div class="sp-overall-avg">
+          <div class="sp-avg-label">Ø Gesamt</div>
+          <div class="sp-avg-value ${avgColor(overallAvg)}">${overallAvg.toFixed(2)}</div>
+        </div>` : ''}
+      </div>
+
+      <!-- NOTEN -->
+      <div class="sp-section">
+        <div class="sp-section-title">Noten</div>
+        ${subjects.length ? gradeHtml : '<div class="text-muted text-sm" style="padding:8px 0;">Keine Noten eingetragen.</div>'}
+      </div>
+
+      <!-- ANWESENHEIT -->
+      <div class="sp-section">
+        <div class="sp-section-title">Anwesenheit</div>
+        <div class="sp-att-stats">
+          <div class="sp-att-stat sp-att-fehlt"><div class="sp-stat-n">${fehlt}</div><div>Fehltage</div></div>
+          <div class="sp-att-stat sp-att-entsch"><div class="sp-stat-n">${entsch}</div><div>entschuldigt</div></div>
+          <div class="sp-att-stat sp-att-unentsch"><div class="sp-stat-n">${unentsch}</div><div>unentschuldigt</div></div>
+          <div class="sp-att-stat sp-att-spaet"><div class="sp-stat-n">${spaet}</div><div>Verspätungen</div></div>
+        </div>
+        ${attDotsHtml || '<div class="text-muted text-sm" style="padding:8px 0;">Keine Einträge.</div>'}
+      </div>
+
+      <!-- BEMERKUNGEN -->
+      <div class="sp-section">
+        <div class="sp-section-title">Bemerkungen</div>
+        ${remarksHtml}
+      </div>
+
+      <!-- HAUSAUFGABEN -->
+      <div class="sp-section">
+        <div class="sp-section-title">Hausaufgaben vergessen</div>
+        <div class="sp-total-hw">Gesamt: <strong>${allHW.length}</strong></div>
+        ${hwHtml}
+      </div>
+
+      <div class="sp-print-footer">
+        LehrerPlaner · ${escHtml(App.settings.teacherName||'')} · Erstellt am ${new Date().toLocaleDateString('de-DE')}
+      </div>
+    </div>`;
+}
 
 // ══════════════════════════════════════════════════════════════
 // BIRTHDAY SYNC

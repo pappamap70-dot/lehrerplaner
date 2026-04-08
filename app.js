@@ -162,9 +162,33 @@ function colorSwatchesHtml(selectedColor, colors, idPrefix) {
 // INITIALIZATION
 // ══════════════════════════════════════════════════════════════
 async function init() {
-  // Register service worker
+  // Register service worker with full error reporting
   if ('serviceWorker' in navigator) {
-    navigator.serviceWorker.register('./sw.js').catch(()=>{});
+    navigator.serviceWorker.register('./sw.js')
+      .then(reg => {
+        console.log('[App] Service Worker registered, scope:', reg.scope);
+        // Check offline readiness after SW is active
+        const sw = reg.active || reg.installing || reg.waiting;
+        if (sw) checkSWStatus(reg);
+        reg.addEventListener('updatefound', () => {
+          console.log('[App] Service Worker update found');
+          checkSWStatus(reg);
+        });
+      })
+      .catch(err => {
+        console.error('[App] Service Worker registration FAILED:', err.message, err);
+        showSWStatus('error', 'Service Worker konnte nicht registriert werden — Offline-Modus nicht verfügbar');
+      });
+
+    // Listen for pong from SW
+    navigator.serviceWorker.addEventListener('message', e => {
+      if (e.data?.type === 'pong') {
+        console.log('[App] SW active, cache:', e.data.cache);
+        showSWStatus('ok', 'App offline verfügbar');
+      }
+    });
+  } else {
+    showSWStatus('error', 'Service Worker nicht unterstützt');
   }
 
   // PWA install prompt
@@ -197,6 +221,7 @@ async function init() {
 async function launchApp() {
   App.settings = await DB.getAllSettings();
   App.classes = await DB.getClasses();
+  await initSubjects();
 
   // Update header
   el('header-teacher').textContent = App.settings.teacherName || '';
@@ -241,6 +266,19 @@ async function launchApp() {
   el('klasse-modal').addEventListener('click', e => { if (e.target===el('klasse-modal')) closeKlasseModal(); });
   setupColorSwatches('kl-colors', CLASS_COLORS, c => { App._klColor = c; });
 
+  // Class picker modal (for import)
+  el('class-picker-modal').addEventListener('click', e => { if (e.target===el('class-picker-modal')) el('class-picker-modal').classList.add('hidden'); });
+
+  // Student profile modal
+  el('sp-modal-close').addEventListener('click', () => el('student-profile-modal').classList.add('hidden'));
+  el('student-profile-modal').addEventListener('click', e => { if (e.target===el('student-profile-modal')) el('student-profile-modal').classList.add('hidden'); });
+
+  // Subjects modal
+  el('subjects-modal-close').addEventListener('click', () => el('subjects-modal').classList.add('hidden'));
+  el('subjects-modal-cancel').addEventListener('click', () => el('subjects-modal').classList.add('hidden'));
+  el('subjects-modal').addEventListener('click', e => { if (e.target===el('subjects-modal')) el('subjects-modal').classList.add('hidden'); });
+  el('new-subject-input').addEventListener('keydown', e => { if (e.key==='Enter') addSubject(); });
+
   // FAB / quick add
   el('fab-add').addEventListener('click', () => openEventModal(null, isoDate(new Date())));
   el('dash-add-event').addEventListener('click', () => openEventModal(null, isoDate(new Date())));
@@ -282,6 +320,33 @@ async function launchApp() {
 
   // Init notizen canvas
   initNotizCanvas();
+}
+
+// ── Service Worker Status ────────────────────────────────────
+function checkSWStatus(reg) {
+  // Ping the SW to confirm it's responding
+  navigator.serviceWorker.ready.then(readyReg => {
+    if (readyReg.active) {
+      readyReg.active.postMessage('ping');
+    }
+  }).catch(() => {
+    showSWStatus('warn', 'Service Worker inaktiv');
+  });
+}
+
+let _swStatusTimer = null;
+function showSWStatus(type, msg) {
+  const badge = el('sw-status-badge');
+  if (!badge) return;
+  badge.textContent = type === 'ok' ? '✓ Offline OK' : type === 'warn' ? '⚠ SW inaktiv' : '✗ Kein Offline';
+  badge.className   = `sw-status-badge sw-${type}`;
+  badge.title       = msg;
+  badge.style.display = '';
+  clearTimeout(_swStatusTimer);
+  // Auto-hide after 4 s if status is ok
+  if (type === 'ok') {
+    _swStatusTimer = setTimeout(() => { badge.style.display = 'none'; }, 4000);
+  }
 }
 
 function updateHeaderDate() {
@@ -356,16 +421,147 @@ async function renderDashboard() {
     }).join('');
   }
 
+  // Backup reminder banner
+  const banner = el('dash-backup-banner');
+  if (banner) {
+    const last  = App.settings.lastBackup ? new Date(App.settings.lastBackup) : null;
+    const snooze = App.settings.backupBannerSnoozed ? new Date(App.settings.backupBannerSnoozed) : null;
+    const daysSinceLast   = last   ? (Date.now() - last.getTime())   / 86400000 : 999;
+    const daysSinceSnooze = snooze ? (Date.now() - snooze.getTime()) / 86400000 : 999;
+    const show = daysSinceLast > 7 && daysSinceSnooze > 2;
+    banner.classList.toggle('hidden', !show);
+  }
+
   // Classes grid
   App.classes = await DB.getClasses();
+  App.classes.sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || a.name.localeCompare(b.name, 'de'));
   const grid = el('dash-class-grid');
   if (!App.classes.length) {
     grid.innerHTML = '<div class="text-muted text-sm">Noch keine Klassen angelegt</div>';
   } else {
     grid.innerHTML = App.classes.map(c =>
-      `<div class="dash-class-chip" style="background:${c.color||'#4A6FA5'};" onclick="App.navigate('klassen')">${escHtml(c.name)}</div>`
+      `<div class="dash-class-chip" data-id="${c.id}" draggable="true"
+        style="background:${c.color||'#4A6FA5'};"
+        onclick="openKlasseDetail(${c.id})">${escHtml(c.name)}</div>`
     ).join('');
+    initDashClassDragDrop(grid);
   }
+}
+
+function initDashClassDragDrop(grid) {
+  let dragSrc = null;
+
+  grid.addEventListener('dragstart', e => {
+    dragSrc = e.target.closest('.dash-class-chip');
+    if (!dragSrc) return;
+    e.dataTransfer.effectAllowed = 'move';
+    dragSrc.style.opacity = '0.4';
+  });
+
+  grid.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const target = e.target.closest('.dash-class-chip');
+    if (!target || target === dragSrc) return;
+    grid.querySelectorAll('.dash-class-chip').forEach(c => c.classList.remove('dash-chip-over'));
+    target.classList.add('dash-chip-over');
+  });
+
+  grid.addEventListener('dragleave', e => {
+    const t = e.target.closest('.dash-class-chip');
+    if (t) t.classList.remove('dash-chip-over');
+  });
+
+  grid.addEventListener('dragend', () => {
+    grid.querySelectorAll('.dash-class-chip').forEach(c => {
+      c.style.opacity = '';
+      c.classList.remove('dash-chip-over');
+    });
+    dragSrc = null;
+  });
+
+  grid.addEventListener('drop', async e => {
+    e.preventDefault();
+    const target = e.target.closest('.dash-class-chip');
+    if (!target || !dragSrc || target === dragSrc) return;
+
+    // Determine insert position
+    const rect = target.getBoundingClientRect();
+    const mid  = rect.left + rect.width / 2;
+    if (e.clientX < mid) grid.insertBefore(dragSrc, target);
+    else                 grid.insertBefore(dragSrc, target.nextSibling);
+
+    // Persist order
+    const chips = [...grid.querySelectorAll('.dash-class-chip')];
+    for (let i = 0; i < chips.length; i++) {
+      const id  = Number(chips[i].dataset.id);
+      const cls = App.classes.find(c => c.id === id);
+      if (cls) { cls.order = i; await DB.saveClass(cls); }
+    }
+    grid.querySelectorAll('.dash-class-chip').forEach(c => c.classList.remove('dash-chip-over'));
+  });
+
+  // Touch support
+  let tDragEl = null, tClone = null, tOffX = 0, tOffY = 0;
+
+  grid.addEventListener('touchstart', e => {
+    const chip = e.target.closest('.dash-class-chip');
+    if (!chip) return;
+    // Only start drag after a short hold (200ms) to distinguish from tap
+    chip._holdTimer = setTimeout(() => {
+      tDragEl = chip;
+      e.preventDefault();
+      const rect = chip.getBoundingClientRect();
+      tOffX = e.touches[0].clientX - rect.left;
+      tOffY = e.touches[0].clientY - rect.top;
+      tClone = chip.cloneNode(true);
+      tClone.style.cssText = `position:fixed;width:${rect.width}px;height:${rect.height}px;opacity:0.85;z-index:9999;pointer-events:none;left:${rect.left}px;top:${rect.top}px;border-radius:var(--radius);`;
+      document.body.appendChild(tClone);
+      chip.style.opacity = '0.3';
+    }, 200);
+  }, { passive: true });
+
+  grid.addEventListener('touchmove', e => {
+    const chip = e.target.closest('.dash-class-chip');
+    if (chip && chip._holdTimer) { clearTimeout(chip._holdTimer); chip._holdTimer = null; }
+    if (!tDragEl || !tClone) return;
+    e.preventDefault();
+    const x = e.touches[0].clientX, y = e.touches[0].clientY;
+    tClone.style.left = (x - tOffX) + 'px';
+    tClone.style.top  = (y - tOffY) + 'px';
+    tClone.style.display = 'none';
+    const under = document.elementFromPoint(x, y);
+    tClone.style.display = '';
+    const target = under && under.closest('.dash-class-chip');
+    grid.querySelectorAll('.dash-class-chip').forEach(c => c.classList.remove('dash-chip-over'));
+    if (target && target !== tDragEl) target.classList.add('dash-chip-over');
+  }, { passive: false });
+
+  grid.addEventListener('touchend', async e => {
+    const chip = e.target.closest('.dash-class-chip');
+    if (chip && chip._holdTimer) { clearTimeout(chip._holdTimer); chip._holdTimer = null; }
+    if (!tDragEl || !tClone) return;
+    const x = e.changedTouches[0].clientX, y = e.changedTouches[0].clientY;
+    tClone.remove(); tClone = null;
+    tDragEl.style.opacity = '';
+    const under = document.elementFromPoint(x, y);
+    const target = under && under.closest('.dash-class-chip');
+    grid.querySelectorAll('.dash-class-chip').forEach(c => c.classList.remove('dash-chip-over'));
+
+    if (target && target !== tDragEl) {
+      const rect = target.getBoundingClientRect();
+      if (x < rect.left + rect.width / 2) grid.insertBefore(tDragEl, target);
+      else                                 grid.insertBefore(tDragEl, target.nextSibling);
+
+      const chips = [...grid.querySelectorAll('.dash-class-chip')];
+      for (let i = 0; i < chips.length; i++) {
+        const id  = Number(chips[i].dataset.id);
+        const cls = App.classes.find(c => c.id === id);
+        if (cls) { cls.order = i; await DB.saveClass(cls); }
+      }
+    }
+    tDragEl = null;
+  });
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -695,70 +891,201 @@ function updateColorSwatches(containerId, selectedColor) {
 // ══════════════════════════════════════════════════════════════
 async function renderKlassen() {
   App.classes = await DB.getClasses();
+  // Sort by order field, then by name
+  App.classes.sort((a, b) => (a.order ?? 999) - (b.order ?? 999) || a.name.localeCompare(b.name, 'de'));
 
-  // Separate classes with valid slot (1-18) from those without
-  const bySlot = {};      // slot 1-18 → class
-  const unslotted = [];   // classes with slot=0, undefined, or >18
+  const list = el('klassen-list');
 
-  App.classes.forEach(c => {
-    const s = c.slot;
-    if (s >= 1 && s <= 18 && !bySlot[s]) {
-      bySlot[s] = c;
-    } else if (s >= 1 && s <= 18 && bySlot[s]) {
-      // Duplicate slot — put second occupant into unslotted
-      unslotted.push(c);
-    } else {
-      unslotted.push(c);
-    }
-  });
+  const toolbar = `<div class="klassen-toolbar">
+    <button class="btn btn-secondary btn-sm" onclick="openASVImport()">↑ Importieren</button>
+    <button class="btn btn-primary btn-sm" onclick="openKlasseModal(null)">+ Klasse hinzufügen</button>
+  </div>`;
 
-  // Any unslotted classes fill the first empty slot, then overflow to "Weitere"
-  let unslottedIdx = 0;
-
-  function klasseCardHtml(c) {
-    return `<div class="klasse-card" style="border-left-color:${c.color||'#4A6FA5'};" onclick="openKlasseDetail(${c.id})">
-      <div class="klasse-card-header">
-        <div class="klasse-name" style="color:${c.color||'#4A6FA5'};">${escHtml(c.name)}</div>
-        <button class="btn btn-ghost btn-sm btn-icon kl-edit-btn" onclick="event.stopPropagation();openKlasseModal(${c.id})" title="Klasse bearbeiten">✎</button>
-      </div>
-      <div class="klasse-subject">${escHtml(c.subject||'')}</div>
-      <div class="klasse-card-footer">
-        <span class="kl-student-count" id="kl-count-${c.id}"></span>
-      </div>
+  if (!App.classes.length) {
+    list.innerHTML = toolbar + `<div class="empty-state" style="margin-top:40px;">
+      <div class="empty-state-icon">🏫</div>
+      <p>Noch keine Klassen angelegt.</p>
     </div>`;
+    return;
   }
 
-  function renderGrid(gridId, slots) {
-    const grid = el(gridId);
-    grid.innerHTML = slots.map(slot => {
-      // Prefer the class assigned to this slot; otherwise take next unslotted
-      let c = bySlot[slot];
-      if (!c && unslottedIdx < unslotted.length) {
-        c = unslotted[unslottedIdx++];
-      }
-      if (c) return klasseCardHtml(c);
-      return `<div class="klasse-add-card" onclick="openKlasseModal(null,${slot})">
-        <div class="klasse-add-icon">+</div>
-        <div>Klasse ${slot}</div>
-      </div>`;
-    }).join('');
+  list.innerHTML = toolbar + `
+    <div class="klassen-row-list" id="klassen-row-list">
+      ${App.classes.map((c, i) => `
+        <div class="klasse-row-item" data-id="${c.id}" data-order="${i}" draggable="true">
+          <div class="klasse-row-handle" title="Ziehen zum Sortieren">⠿</div>
+          <div class="klasse-row-color-bar" style="background:${c.color||'#4A6FA5'};"></div>
+          <div class="klasse-row-info" onclick="openKlasseDetail(${c.id})">
+            <div class="klasse-row-name" style="color:${c.color||'#4A6FA5'};">${escHtml(c.name)}</div>
+            ${c.subject ? `<div class="klasse-row-subject">${escHtml(c.subject)}</div>` : ''}
+          </div>
+          <div class="klasse-row-meta">
+            <span class="kl-student-count text-muted" id="kl-count-${c.id}"></span>
+          </div>
+          <button class="btn btn-ghost btn-sm btn-icon" onclick="event.stopPropagation();openKlasseModal(${c.id})" title="Bearbeiten">✎</button>
+        </div>`).join('')}
+    </div>`;
+
+  // Load student counts asynchronously
+  for (const c of App.classes) {
+    DB.getStudentsByClass(c.id).then(students => {
+      const el2 = document.getElementById(`kl-count-${c.id}`);
+      if (el2) el2.textContent = `${students.filter(s => s.aktiv !== false).length} Schüler`;
+    });
   }
 
-  renderGrid('klassen-grid-1', [1,2,3,4,5,6,7,8,9]);
-  renderGrid('klassen-grid-2', [10,11,12,13,14,15,16,17,18]);
-
-  // Any classes still not shown (overflow beyond 18 slots) get their own section
-  const overflow = unslotted.slice(unslottedIdx);
-  const extraSection = el('klassen-extra-section');
-  if (overflow.length) {
-    extraSection.style.display = '';
-    el('klassen-grid-extra').innerHTML = overflow.map(klasseCardHtml).join('');
-  } else {
-    extraSection.style.display = 'none';
-  }
+  // Drag & drop for reordering
+  initKlassenDragDrop();
 }
 
-window.openKlasseModal = async function(klasseId, defaultSlot) {
+// Opens ASV import after picking the target class (if >1 class exists)
+window.openImportClassPicker = async function() {
+  if (!App.classes.length) { showToast('Zuerst eine Klasse anlegen', 'error'); return; }
+  if (App.classes.length === 1) {
+    await openKlasseDetail(App.classes[0].id);
+    // Wait for render, then open import
+    setTimeout(() => { if (typeof openASVImport === 'function') openASVImport(); }, 200);
+    return;
+  }
+  // Show picker modal
+  const opts = App.classes.map(c =>
+    `<div class="class-pick-item" onclick="pickClassForImport(${c.id})" style="border-left:4px solid ${c.color||'#4A6FA5'};">
+      <strong>${escHtml(c.name)}</strong>${c.subject ? `<span class="text-muted text-sm"> · ${escHtml(c.subject)}</span>` : ''}
+    </div>`
+  ).join('');
+  el('class-picker-list').innerHTML = opts;
+  el('class-picker-modal').classList.remove('hidden');
+};
+
+window.pickClassForImport = async function(classId) {
+  el('class-picker-modal').classList.add('hidden');
+  await openKlasseDetail(classId);
+  setTimeout(() => { if (typeof openASVImport === 'function') openASVImport(); }, 200);
+};
+
+function initKlassenDragDrop() {
+  const list = document.getElementById('klassen-row-list');
+  if (!list) return;
+  let dragSrc = null;
+
+  list.addEventListener('dragstart', e => {
+    dragSrc = e.target.closest('.klasse-row-item');
+    if (!dragSrc) return;
+    e.dataTransfer.effectAllowed = 'move';
+    dragSrc.classList.add('dragging');
+  });
+
+  list.addEventListener('dragover', e => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    const target = e.target.closest('.klasse-row-item');
+    if (!target || target === dragSrc) return;
+    const rect = target.getBoundingClientRect();
+    const mid  = rect.top + rect.height / 2;
+    list.querySelectorAll('.klasse-row-item').forEach(i => i.classList.remove('drag-over-top','drag-over-bottom'));
+    target.classList.add(e.clientY < mid ? 'drag-over-top' : 'drag-over-bottom');
+  });
+
+  list.addEventListener('dragleave', e => {
+    const target = e.target.closest('.klasse-row-item');
+    if (target) target.classList.remove('drag-over-top','drag-over-bottom');
+  });
+
+  list.addEventListener('dragend', e => {
+    list.querySelectorAll('.klasse-row-item').forEach(i => {
+      i.classList.remove('dragging','drag-over-top','drag-over-bottom');
+    });
+    dragSrc = null;
+  });
+
+  list.addEventListener('drop', async e => {
+    e.preventDefault();
+    const target = e.target.closest('.klasse-row-item');
+    if (!target || !dragSrc || target === dragSrc) return;
+
+    const items = [...list.querySelectorAll('.klasse-row-item')];
+    const fromIdx = items.indexOf(dragSrc);
+    const toIdx   = items.indexOf(target);
+    const rect = target.getBoundingClientRect();
+    const insertBefore = e.clientY < rect.top + rect.height / 2;
+
+    // Re-order DOM
+    if (insertBefore) {
+      list.insertBefore(dragSrc, target);
+    } else {
+      list.insertBefore(dragSrc, target.nextSibling);
+    }
+
+    // Persist new order
+    const ordered = [...list.querySelectorAll('.klasse-row-item')];
+    for (let i = 0; i < ordered.length; i++) {
+      const id = Number(ordered[i].dataset.id);
+      const cls = App.classes.find(c => c.id === id);
+      if (cls) { cls.order = i; await DB.saveClass(cls); }
+    }
+    list.querySelectorAll('.klasse-row-item').forEach(i => i.classList.remove('drag-over-top','drag-over-bottom'));
+  });
+
+  // Touch-based drag for tablets
+  let touchDragEl = null, touchClone = null, touchOffY = 0;
+  list.addEventListener('touchstart', e => {
+    const handle = e.target.closest('.klasse-row-handle');
+    if (!handle) return;
+    touchDragEl = handle.closest('.klasse-row-item');
+    if (!touchDragEl) return;
+    e.preventDefault();
+    const rect = touchDragEl.getBoundingClientRect();
+    touchOffY = e.touches[0].clientY - rect.top;
+    touchClone = touchDragEl.cloneNode(true);
+    touchClone.style.cssText = `position:fixed;left:${rect.left}px;width:${rect.width}px;opacity:0.8;z-index:9999;pointer-events:none;top:${rect.top}px;`;
+    document.body.appendChild(touchClone);
+    touchDragEl.style.opacity = '0.3';
+  }, { passive: false });
+
+  list.addEventListener('touchmove', e => {
+    if (!touchDragEl || !touchClone) return;
+    e.preventDefault();
+    const y = e.touches[0].clientY;
+    touchClone.style.top = (y - touchOffY) + 'px';
+    // Find item under finger
+    touchClone.style.display = 'none';
+    const under = document.elementFromPoint(e.touches[0].clientX, y);
+    touchClone.style.display = '';
+    const target = under && under.closest('.klasse-row-item');
+    list.querySelectorAll('.klasse-row-item').forEach(i => i.classList.remove('drag-over-top','drag-over-bottom'));
+    if (target && target !== touchDragEl) {
+      const rect = target.getBoundingClientRect();
+      target.classList.add(y < rect.top + rect.height / 2 ? 'drag-over-top' : 'drag-over-bottom');
+    }
+  }, { passive: false });
+
+  list.addEventListener('touchend', async e => {
+    if (!touchDragEl || !touchClone) return;
+    const y = e.changedTouches[0].clientY;
+    const cx = e.changedTouches[0].clientX;
+    touchClone.remove(); touchClone = null;
+    touchDragEl.style.opacity = '';
+    const under = document.elementFromPoint(cx, y);
+    const target = under && under.closest('.klasse-row-item');
+    list.querySelectorAll('.klasse-row-item').forEach(i => i.classList.remove('drag-over-top','drag-over-bottom'));
+
+    if (target && target !== touchDragEl) {
+      const rect = target.getBoundingClientRect();
+      if (y < rect.top + rect.height / 2) list.insertBefore(touchDragEl, target);
+      else list.insertBefore(touchDragEl, target.nextSibling);
+
+      const ordered = [...list.querySelectorAll('.klasse-row-item')];
+      for (let i = 0; i < ordered.length; i++) {
+        const id = Number(ordered[i].dataset.id);
+        const cls = App.classes.find(c => c.id === id);
+        if (cls) { cls.order = i; await DB.saveClass(cls); }
+      }
+    }
+    touchDragEl = null;
+  });
+}
+
+window.openKlasseModal = async function(klasseId) {
   _editingKlasseId = klasseId || null;
   App._klColor = CLASS_COLORS[0];
 
@@ -768,15 +1095,13 @@ window.openKlasseModal = async function(klasseId, defaultSlot) {
     el('klasse-modal-title').textContent = 'Klasse bearbeiten';
     el('kl-name').value    = c.name    || '';
     el('kl-subject').value = c.subject || '';
-    el('kl-slot').value    = c.slot    || '';
     App._klColor = c.color || CLASS_COLORS[0];
     el('kl-delete').style.display = '';
   } else {
     el('klasse-modal-title').textContent = 'Neue Klasse';
     el('kl-name').value    = '';
     el('kl-subject').value = '';
-    el('kl-slot').value    = defaultSlot || '';
-    App._klColor = CLASS_COLORS[(defaultSlot-1) % CLASS_COLORS.length] || CLASS_COLORS[0];
+    App._klColor = CLASS_COLORS[App.classes.length % CLASS_COLORS.length];
     el('kl-delete').style.display = 'none';
   }
   updateColorSwatches('kl-colors', App._klColor);
@@ -789,11 +1114,12 @@ let _editingKlasseId = null;
 async function saveKlasse() {
   const name = el('kl-name').value.trim();
   if (!name) { showToast('Bitte einen Namen eingeben.','error'); return; }
+  const existing = _editingKlasseId ? await DB.getClass(_editingKlasseId) : null;
   const cls = {
     name,
     subject: el('kl-subject').value.trim() || null,
-    slot:    Number(el('kl-slot').value) || 0,
     color:   App._klColor || CLASS_COLORS[0],
+    order:   existing ? (existing.order ?? App.classes.length) : App.classes.length,
   };
   if (_editingKlasseId) cls.id = _editingKlasseId;
   await DB.saveClass(cls);
@@ -821,6 +1147,7 @@ function closeKlasseModal() { el('klasse-modal').classList.add('hidden'); }
 // ══════════════════════════════════════════════════════════════
 const ORG_MODULES = [
   { id:'todos',        icon:'✅', label:'To-Dos',           sub:'' },
+  { id:'faecher',      icon:'📖', label:'Fächer',            sub:'' },
   { id:'stundenplan',  icon:'🗓', label:'Stundenpläne',      sub:'4 Slots' },
   { id:'schultermine', icon:'📅', label:'Schultermine',      sub:'1./2. HJ' },
   { id:'klassenarbeiten',icon:'📝',label:'Klassenarbeiten',  sub:'1./2. HJ' },
@@ -857,6 +1184,7 @@ window.openOrgModule = async function(moduleId) {
 
   switch (moduleId) {
     case 'todos':          await renderTodos(); break;
+    case 'faecher':        await renderFaecher(); break;
     case 'stundenplan':    await renderStundenplan(); break;
     case 'schultermine':   await renderSchultermine(); break;
     case 'klassenarbeiten':await renderKlassenarbeiten(); break;
@@ -867,6 +1195,104 @@ window.openOrgModule = async function(moduleId) {
     case 'konferenzen':    await renderKonferenzen(); break;
   }
 };
+
+// ── Fächer ───────────────────────────────────────────────────
+const DEFAULT_FAECHER = [
+  'Deutsch','Mathematik','Englisch','Sport','Sachunterricht','Kunst','Musik',
+  'Technik','Informatik','Ethik','Religion','NWA','Geschichte','Geographie',
+  'Wirtschaft','Französisch','Physik','Chemie','Biologie',
+];
+
+async function initSubjects() {
+  const existing = await DB.getSubjects();
+  if (existing.length) return; // already initialized
+  for (let i = 0; i < DEFAULT_FAECHER.length; i++) {
+    await DB.saveSubject({ name: DEFAULT_FAECHER[i], order: i });
+  }
+}
+
+async function renderFaecher() {
+  const subjects = await DB.getSubjects();
+  const content = el('org-detail-content');
+  el('org-add-btn').style.display = 'none';
+
+  let html = '<div class="faecher-list">';
+  if (!subjects.length) {
+    html += '<div class="empty-state"><p>Noch keine Fächer.</p></div>';
+  } else {
+    html += subjects.map(s => `
+      <div class="fach-item">
+        <span class="fach-name">${escHtml(s.name)}</span>
+        <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteFach(${s.id})" title="Löschen">×</button>
+      </div>`).join('');
+  }
+  html += '</div>';
+  html += `<div class="faecher-add-row" style="margin-top:12px;display:flex;gap:8px;">
+    <input type="text" class="form-input" id="fach-new-input" placeholder="Neues Fach…" style="flex:1;"
+      onkeydown="if(event.key==='Enter')addFach()">
+    <button class="btn btn-primary btn-sm" onclick="addFach()">+ Hinzufügen</button>
+  </div>`;
+  content.innerHTML = html;
+  setTimeout(() => el('fach-new-input')?.focus(), 50);
+}
+
+// For subjects modal (standalone modal, separate from org module)
+window.addSubject = async function() {
+  const input = el('new-subject-input');
+  const name = input ? input.value.trim() : '';
+  if (!name) return;
+  const subjects = await DB.getSubjects();
+  if (subjects.some(s => s.name.toLowerCase() === name.toLowerCase())) {
+    showToast('Fach bereits vorhanden', 'error'); return;
+  }
+  await DB.saveSubject({ name, order: subjects.length });
+  input.value = '';
+  await renderSubjectsModalList();
+};
+
+async function renderSubjectsModalList() {
+  const subjects = await DB.getSubjects();
+  const list = el('subjects-list');
+  if (!list) return;
+  list.innerHTML = subjects.map(s => `
+    <div class="fach-item">
+      <span class="fach-name">${escHtml(s.name)}</span>
+      <button class="btn btn-ghost btn-sm btn-icon" onclick="deleteSubjectFromModal(${s.id})">×</button>
+    </div>`).join('') || '<div class="text-muted text-sm">Noch keine Fächer.</div>';
+}
+
+window.deleteSubjectFromModal = async function(id) {
+  await DB.deleteSubject(id);
+  await renderSubjectsModalList();
+};
+
+window.addFach = async function() {
+  const input = el('fach-new-input');
+  const name = input ? input.value.trim() : '';
+  if (!name) return;
+  const subjects = await DB.getSubjects();
+  if (subjects.some(s => s.name.toLowerCase() === name.toLowerCase())) {
+    showToast('Fach bereits vorhanden', 'error'); return;
+  }
+  await DB.saveSubject({ name, order: subjects.length });
+  showToast(`${name} hinzugefügt ✓`, 'success');
+  await renderFaecher();
+};
+
+window.deleteFach = async function(id) {
+  if (!await confirm2('Fach löschen?', 'Noten mit diesem Fach bleiben erhalten.')) return;
+  await DB.deleteSubject(id);
+  await renderFaecher();
+};
+
+// Helper: populate a <select> with subjects
+async function populateSubjectSelect(selectEl, currentValue) {
+  const subjects = await DB.getSubjects();
+  selectEl.innerHTML = subjects.map(s =>
+    `<option value="${escHtml(s.name)}"${s.name === currentValue ? ' selected' : ''}>${escHtml(s.name)}</option>`
+  ).join('');
+  if (!selectEl.value && subjects.length) selectEl.value = subjects[0].name;
+}
 
 // ── Todos ────────────────────────────────────────────────────
 async function renderTodos() {
@@ -1356,6 +1782,13 @@ async function loadNotizPage(page) {
     qsa('.notiz-tab')[page-1].lastChild.textContent = el('notiz-title').value.trim() || `Seite ${page}`;
   };
 
+  // Auto-save textarea on content change (debounced)
+  let _notizSaveTimer = null;
+  el('notiz-textarea').oninput = () => {
+    clearTimeout(_notizSaveTimer);
+    _notizSaveTimer = setTimeout(() => saveNotizPage(page), 600);
+  };
+
   // Load ink layer
   const pageKey = `note-${page}`;
   App.currentPageKey = pageKey;
@@ -1598,11 +2031,20 @@ async function exportData() {
     a.download = `LehrerPlaner-Backup-${date}.json`;
     a.click();
     URL.revokeObjectURL(url);
+    await DB.setSetting('lastBackup', new Date().toISOString());
+    App.settings.lastBackup = new Date().toISOString();
+    el('dash-backup-banner')?.classList.add('hidden');
     showToast('Backup erstellt ✓','success');
   } catch(err) {
     showToast('Fehler beim Export: ' + err.message,'error');
   }
 }
+
+window.dismissBackupBanner = function() {
+  el('dash-backup-banner')?.classList.add('hidden');
+  // Snooze for 2 days
+  DB.setSetting('backupBannerSnoozed', new Date().toISOString());
+};
 
 async function importData(e) {
   const file = e.target.files[0];

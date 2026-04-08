@@ -173,17 +173,13 @@
     </div>
     <div class="modal-body">
       <div class="form-row">
-        <div class="form-group" style="flex:1.5;">
+        <div class="form-group" style="flex:2;">
           <label class="form-label">Klasse / Name</label>
           <input type="text" class="form-input" id="kl-name" placeholder="z. B. 7a oder Klasse 4">
         </div>
-        <div class="form-group" style="flex:1.5;">
-          <label class="form-label">Fach</label>
+        <div class="form-group" style="flex:2;">
+          <label class="form-label">Fach / Bezeichnung</label>
           <input type="text" class="form-input" id="kl-subject" placeholder="z. B. Mathe, Deutsch">
-        </div>
-        <div class="form-group" style="flex:1;">
-          <label class="form-label">Slot (1–18)</label>
-          <input type="number" class="form-input" id="kl-slot" min="1" max="18" placeholder="1">
         </div>
       </div>
       <div class="form-group">
@@ -350,6 +346,7 @@
       <span id="header-teacher"></span>
       <span id="header-date"></span>
     </div>
+    <span id="sw-status-badge" class="sw-status-badge" style="display:none;" title=""></span>
     <button class="header-btn" id="btn-settings" title="Einstellungen">⚙</button>
   </div>
 
@@ -386,27 +383,25 @@
         <h3>Schnellzugriff</h3>
         <div class="dash-quick-btns">
           <button class="btn btn-primary" id="dash-add-event">+ Termin</button>
-          <button class="btn btn-secondary" onclick="App.navigate('kalender')">Wochenansicht →</button>
+          <button class="btn btn-secondary" onclick="App.navigate('kalender')">Kalender →</button>
           <button class="btn btn-secondary" onclick="App.navigate('notizen')">Notizen →</button>
-          <button class="btn btn-secondary" onclick="App.navigate('organisation')">To-Dos →</button>
+          <button class="btn btn-secondary" onclick="App.navigate('organisation');setTimeout(()=>openOrgModule('todos'),50)">To-Dos →</button>
+          <button class="btn btn-secondary" onclick="exportData()">💾 Backup</button>
+        </div>
+      </div>
+      <!-- Backup reminder banner (shown dynamically) -->
+      <div id="dash-backup-banner" class="backup-banner hidden" style="grid-column:1/-1;">
+        <span>⚠ Kein Backup in den letzten 7 Tagen — Daten können bei Browser-Reset verloren gehen!</span>
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <button class="btn btn-primary btn-sm" onclick="exportData()">Jetzt sichern</button>
+          <button class="btn btn-ghost btn-sm" onclick="dismissBackupBanner()">Später</button>
         </div>
       </div>
     </div>
 
     <!-- ── KLASSEN ── -->
     <div id="view-klassen" class="view">
-      <div class="klassen-section">
-        <div class="klassen-section-title">Klassen 1–9</div>
-        <div class="klassen-grid" id="klassen-grid-1"></div>
-      </div>
-      <div class="klassen-section">
-        <div class="klassen-section-title">Klassen 10–18</div>
-        <div class="klassen-grid" id="klassen-grid-2"></div>
-      </div>
-      <div class="klassen-section" id="klassen-extra-section" style="display:none;">
-        <div class="klassen-section-title">Weitere Klassen</div>
-        <div class="klassen-grid" id="klassen-grid-extra"></div>
-      </div>
+      <div id="klassen-list"></div>
     </div>
 
     <!-- ── KALENDER ── -->
@@ -603,8 +598,7 @@
         </div>
         <div class="form-group" style="flex:2;">
           <label class="form-label">Fach</label>
-          <input type="text" class="form-input" id="g-fach" placeholder="z. B. Mathematik" list="g-fach-list">
-          <datalist id="g-fach-list"></datalist>
+          <select class="form-select" id="g-fach"></select>
         </div>
       </div>
       <div class="form-row">
@@ -725,6 +719,61 @@
       <button class="btn btn-secondary" id="asv-back" style="margin-right:auto;display:none;">← Zurück</button>
       <button class="btn btn-secondary" id="asv-cancel">Abbrechen</button>
       <button class="btn btn-primary" id="asv-next">Weiter →</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     STUDENT PROFILE MODAL (Schülerakte)
+══════════════════════════════════════════════════════════ -->
+<div id="student-profile-modal" class="overlay-backdrop hidden">
+  <div class="modal modal-profile">
+    <div class="modal-header sp-header-bar">
+      <span class="modal-title">Schülerakte</span>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button class="btn btn-secondary btn-sm" id="sp-print-btn" onclick="printStudentProfile()">Drucken / PDF</button>
+        <button class="modal-close" id="sp-modal-close">×</button>
+      </div>
+    </div>
+    <div class="modal-body" id="sp-modal-body" style="padding:0;overflow-y:auto;max-height:80vh;">
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SUBJECTS MANAGEMENT MODAL (Fächer)
+══════════════════════════════════════════════════════════ -->
+<div id="subjects-modal" class="overlay-backdrop hidden">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Fächer verwalten</span>
+      <button class="modal-close" id="subjects-modal-close">×</button>
+    </div>
+    <div class="modal-body">
+      <div id="subjects-list"></div>
+      <div class="form-row" style="margin-top:12px;">
+        <input type="text" class="form-input" id="new-subject-input" placeholder="Neues Fach eingeben…" style="flex:1;">
+        <button class="btn btn-primary btn-sm" onclick="addSubject()">+ Hinzufügen</button>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="subjects-modal-cancel">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════
+     CLASS PICKER MODAL (for import)
+══════════════════════════════════════════════════════════ -->
+<div id="class-picker-modal" class="overlay-backdrop hidden">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header">
+      <span class="modal-title">Für welche Klasse importieren?</span>
+      <button class="modal-close" onclick="el('class-picker-modal').classList.add('hidden')">×</button>
+    </div>
+    <div class="modal-body" id="class-picker-list" style="display:flex;flex-direction:column;gap:8px;"></div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="el('class-picker-modal').classList.add('hidden')">Abbrechen</button>
     </div>
   </div>
 </div>
